@@ -5,25 +5,27 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.naudio.app.di.AppContainer
+import com.naudio.app.ui.HomeScreen
+import com.naudio.app.ui.HomeViewModel
 import com.naudio.app.ui.theme.NaudioTheme
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val container = (application as NaudioApplication).container
         setContent {
             NaudioTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    HomeRoute(container = container)
                 }
             }
         }
@@ -31,17 +33,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    NaudioTheme {
-        Greeting("Android")
+private fun HomeRoute(container: AppContainer) {
+    val viewModel: HomeViewModel = viewModel {
+        HomeViewModel(container.libraryRepository)
     }
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    HomeScreen(
+        state = state,
+        onQueryChange = viewModel::onQueryChange,
+        onRetry = viewModel::onRetry,
+    )
 }
