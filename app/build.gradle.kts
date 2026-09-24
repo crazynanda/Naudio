@@ -43,6 +43,7 @@ dependencies {
     implementation(project(":data"))
     implementation(project(":provider:api"))
     implementation(project(":provider:default"))
+    implementation(project(":core:player"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

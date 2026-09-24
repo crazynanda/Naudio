@@ -1,6 +1,9 @@
 package com.naudio.data.provider
 
+import com.naudio.core.model.AudioSource
+import com.naudio.core.model.Track
 import com.naudio.provider.api.MetadataProvider
+import com.naudio.provider.api.PlaybackProvider
 import com.naudio.provider.api.ProviderId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -61,5 +64,44 @@ class ProviderRegistryTest {
         val registry = ProviderRegistry(listOf(b, a))
 
         assertEquals(listOf(b, a), registry.all())
+    }
+
+    @Test
+    fun `playback provider is resolvable by exact id`() {
+        val playback = FakePlaybackProvider(ProviderId("a"))
+        val registry = ProviderRegistry(listOf(FakeMetadataProvider(ProviderId("a"))), listOf(playback))
+
+        assertEquals(playback, registry.playbackProvider(ProviderId("a")))
+    }
+
+    @Test
+    fun `playback provider falls back to active provider id`() {
+        val playback = FakePlaybackProvider(ProviderId("a"))
+        val registry = ProviderRegistry(
+            listOf(FakeMetadataProvider(ProviderId("a")), FakeMetadataProvider(ProviderId("b"))),
+            listOf(playback),
+        )
+
+        assertEquals(playback, registry.playbackProvider(ProviderId("b")))
+    }
+
+    @Test
+    fun `playback provider unknown id returns null when no active fallback`() {
+        val registry = ProviderRegistry(emptyList(), listOf(FakePlaybackProvider(ProviderId("a"))))
+
+        assertNull(registry.playbackProvider(ProviderId("nope")))
+    }
+
+    @Test
+    fun `allPlayback returns playback providers in registration order`() {
+        val p1 = FakePlaybackProvider(ProviderId("a"))
+        val p2 = FakePlaybackProvider(ProviderId("b"))
+        val registry = ProviderRegistry(emptyList(), listOf(p2, p1))
+
+        assertEquals(listOf(p2, p1), registry.allPlayback())
+    }
+
+    private class FakePlaybackProvider(override val id: ProviderId) : PlaybackProvider {
+        override suspend fun resolve(track: Track): AudioSource? = null
     }
 }

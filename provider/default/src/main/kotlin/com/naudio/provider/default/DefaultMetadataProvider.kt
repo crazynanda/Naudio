@@ -9,9 +9,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOf
 
 /**
- * Offline, local-only metadata provider. Deliberately returns no content:
- * online providers are a later milestone. Its only job today is to prove the
- * provider seam end-to-end.
+ * Offline, local-only metadata provider. Serves one canned demo track backed
+ * by a bundled asset so the player foundation is end-to-end demonstrable:
+ * online providers are a later milestone.
  */
 class DefaultMetadataProvider : MetadataProvider {
 
@@ -23,7 +23,21 @@ class DefaultMetadataProvider : MetadataProvider {
 
     override val isAvailable: Flow<Boolean> = available.asStateFlow()
 
-    override fun search(query: String): Flow<List<Track>> = flowOf(emptyList())
+    override fun search(query: String): Flow<List<Track>> =
+        flowOf(if (query.isBlank()) emptyList() else listOf(demoTrack))
 
-    override suspend fun lookup(trackId: String): Track? = null
+    override suspend fun lookup(trackId: String): Track? =
+        if (trackId == demoTrack.id) demoTrack else null
+
+    private companion object {
+        val demoTrack = Track(
+            id = DefaultPlaybackProvider.TEST_TRACK_ID,
+            title = "Test Tone",
+            artist = "Naudio Test",
+            durationMs = TEST_TONE_DURATION_MS,
+        )
+
+        /** Matches the generated asset: 3 s of 440 Hz sine at 8 kHz mono. */
+        const val TEST_TONE_DURATION_MS = 3_000L
+    }
 }

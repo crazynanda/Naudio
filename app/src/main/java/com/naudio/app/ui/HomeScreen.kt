@@ -1,5 +1,6 @@
 package com.naudio.app.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,17 +26,24 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.naudio.app.ui.theme.NaudioTheme
 import com.naudio.core.model.Track
+import com.naudio.core.player.PlayerState
 import com.naudio.data.repository.LibraryQueryState
 
 /**
  * Stateless home screen. Receives state + emits intents — pure UDF rendering.
+ * Playback surfaces (selection, now-playing strip) are delegated via intents;
+ * this file holds no player logic.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     state: HomeUiState,
+    playerState: PlayerState,
     onQueryChange: (String) -> Unit,
     onRetry: () -> Unit,
+    onTrackSelected: (Track) -> Unit,
+    onTogglePlayPause: () -> Unit,
+    onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -43,6 +51,16 @@ fun HomeScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Naudio") },
+            )
+        },
+        bottomBar = {
+            NowPlayingBar(
+                track = playerState.track,
+                isPlaying = playerState.isPlaying,
+                positionMs = playerState.positionMs,
+                durationMs = playerState.durationMs,
+                onTogglePlayPause = onTogglePlayPause,
+                onSeek = onSeek,
             )
         },
     ) { innerPadding ->
@@ -70,7 +88,8 @@ fun HomeScreen(
             when (val search = state.searchState) {
                 is LibraryQueryState.Idle -> IdleHint()
                 is LibraryQueryState.Loading -> LoadingIndicator()
-                is LibraryQueryState.Results -> ResultsList(search.tracks)
+                is LibraryQueryState.Results ->
+                    ResultsList(tracks = search.tracks, onTrackSelected = onTrackSelected)
                 is LibraryQueryState.Error -> ErrorPane(message = search.message, onRetry = onRetry)
             }
         }
@@ -92,7 +111,10 @@ private fun LoadingIndicator() {
 }
 
 @Composable
-private fun ResultsList(tracks: List<Track>) {
+private fun ResultsList(
+    tracks: List<Track>,
+    onTrackSelected: (Track) -> Unit,
+) {
     if (tracks.isEmpty()) {
         Text(
             text = "No results.",
@@ -107,7 +129,12 @@ private fun ResultsList(tracks: List<Track>) {
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         items(tracks, key = { it.id }) { track ->
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onTrackSelected(track) }
+                    .padding(vertical = 8.dp),
+            ) {
                 Text(text = track.title, style = MaterialTheme.typography.titleMedium)
                 Text(
                     text = track.artist,
@@ -144,8 +171,12 @@ private fun HomeScreenPreview() {
                 providerName = "Local library",
                 searchState = LibraryQueryState.Idle,
             ),
+            playerState = PlayerState(),
             onQueryChange = {},
             onRetry = {},
+            onTrackSelected = {},
+            onTogglePlayPause = {},
+            onSeek = {},
         )
     }
 }

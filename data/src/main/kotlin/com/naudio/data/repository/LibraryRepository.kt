@@ -1,8 +1,10 @@
 package com.naudio.data.repository
 
+import com.naudio.core.model.AudioSource
 import com.naudio.core.model.Track
 import com.naudio.data.provider.ProviderRegistry
 import com.naudio.provider.api.MetadataProvider
+import com.naudio.provider.api.PlaybackProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
@@ -48,4 +50,15 @@ class LibraryRepository(
                         .catch { emit(LibraryQueryState.Error(it.message ?: "Search failed")) }
                 }
             }
+
+    /**
+     * Resolve the playable source for [track] through the active provider's
+     * playback capability, or null when no playback provider can serve it.
+     * Never throws for "unresolvable"; failures degrade to null.
+     */
+    suspend fun resolveSource(track: Track): AudioSource? =
+        activePlaybackProvider()?.resolve(track)
+
+    private fun activePlaybackProvider(): PlaybackProvider? =
+        registry.activeProvider?.let { registry.playbackProvider(it.id) }
 }

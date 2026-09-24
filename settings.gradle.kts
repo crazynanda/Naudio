@@ -26,6 +26,7 @@ rootProject.name = "Naudio"
 
 include(":app")
 include(":core:model")
+include(":core:player")
 include(":provider:api")
 include(":provider:default")
 include(":data")
