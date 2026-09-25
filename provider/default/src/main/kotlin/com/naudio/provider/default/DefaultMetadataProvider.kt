@@ -32,6 +32,7 @@ class DefaultMetadataProvider : MetadataProvider {
     private companion object {
         val demoTrack = Track(
             id = DefaultPlaybackProvider.TEST_TRACK_ID,
+            providerId = "local",
             title = "Test Tone",
             artist = "Naudio Test",
             durationMs = TEST_TONE_DURATION_MS,

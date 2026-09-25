@@ -3,6 +3,7 @@ package com.naudio.core.model
 /** A playable or referenceable track in the library. */
 data class Track(
     val id: String,
+    val providerId: String,
     val title: String,
     val artist: String,
     val durationMs: Long = 0L,

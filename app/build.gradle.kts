@@ -45,6 +45,9 @@ dependencies {
     implementation(project(":provider:default"))
     implementation(project(":core:player"))
 
+    // Persistence layer: Room database + entities + DAOs.
+    implementation(project(":core:database"))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

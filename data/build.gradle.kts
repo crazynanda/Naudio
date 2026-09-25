@@ -32,6 +32,10 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.core)
 
+    // Persistence layer: Room database + entities + DAOs.
+    api(project(":core:database"))
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
 }
+
