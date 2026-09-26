@@ -47,6 +47,10 @@ dependencies {
 
     // Persistence layer: Room database + entities + DAOs.
     implementation(project(":core:database"))
+    implementation(project(":core:network"))
+    // AppContainer exposes the Ktor HttpClient type; the engine itself ships at runtime.
+    implementation(libs.ktor.client.core)
+    runtimeOnly(libs.ktor.client.okhttp)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
