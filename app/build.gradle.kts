@@ -43,6 +43,7 @@ dependencies {
     implementation(project(":data"))
     implementation(project(":provider:api"))
     implementation(project(":provider:default"))
+    implementation(project(":provider:itunes"))
     implementation(project(":core:player"))
 
     // Persistence layer: Room database + entities + DAOs.

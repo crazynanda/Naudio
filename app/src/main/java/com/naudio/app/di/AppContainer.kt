@@ -8,8 +8,10 @@ import com.naudio.core.player.PlaybackController
 import com.naudio.data.provider.ProviderRegistry
 import com.naudio.data.repository.FavoritesRepository
 import com.naudio.data.repository.LibraryRepository
+import com.naudio.provider.api.ProviderId
 import com.naudio.provider.default.DefaultMetadataProvider
 import com.naudio.provider.default.DefaultPlaybackProvider
+import com.naudio.provider.itunes.ItunesMetadataProvider
 import io.ktor.client.HttpClient
 
 /** Manual, provider-based DI. Deliberately not Hilt at this milestone:
@@ -20,16 +22,33 @@ class AppContainer(context: Context) {
 
     private val applicationContext = context.applicationContext
 
-    // Providers: registration order = default priority.
+    // Application-lifetime, shared Ktor HTTP client instance — created once,
+    // reused for every request (never constructed per request). Declared
+    // before the providers that receive it via constructor injection.
+    val networkClient: HttpClient by lazy {
+        NaudioHttpClient.create()
+    }
+
+    // Providers: registration order = default priority. The local provider
+    // stays first (default); online providers augment the catalog. iTunes is
+    // metadata-only: there is deliberately no iTunes PlaybackProvider.
     private val metadataProviders = listOf(
         DefaultMetadataProvider(),
+        ItunesMetadataProvider(networkClient),
     )
 
     private val playbackProviders = listOf(
         DefaultPlaybackProvider(),
     )
 
-    val providerRegistry = ProviderRegistry(metadataProviders, playbackProviders)
+    val providerRegistry = ProviderRegistry(metadataProviders, playbackProviders).apply {
+        // Milestone 5 app configuration: iTunes is the active catalog source so
+        // Home search queries the online provider. The local library remains
+        // registered as the fallback default; provider-selection UI is a later
+        // milestone. Playback stays independent: DefaultPlaybackProvider is
+        // untouched and iTunes deliberately has no playback provider.
+        check(activate(ProviderId(ItunesMetadataProvider.PROVIDER_ID))) { "iTunes provider must be registered" }
+    }
 
     val libraryRepository = LibraryRepository(providerRegistry)
 
@@ -46,11 +65,5 @@ class AppContainer(context: Context) {
     // App-lifetime playback controller; the service owns the real player.
     val playbackController: PlaybackController by lazy {
         MediaControllerPlaybackController(applicationContext)
-    }
-
-    // Application-lifetime, shared Ktor HTTP client instance — created once,
-    // reused for every request (never constructed per request).
-    val networkClient: HttpClient by lazy {
-        NaudioHttpClient.create()
     }
 }

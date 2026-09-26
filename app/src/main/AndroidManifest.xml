@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Normal permission, granted at install: required for the Ktor/OkHttp
+         client in :core:network to reach the iTunes Search API. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".NaudioApplication"
         android:allowBackup="true"

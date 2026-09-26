@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
@@ -36,7 +37,7 @@ class LibraryRepository(
     /**
      * Reactive search across the active provider. Re-subscribes whenever the
      * active provider changes; a provider error degrades to [LibraryQueryState.Error]
-     * instead of crashing the stream.
+     * instead of crashing the stream. Empty results are not errors.
      */
     fun search(query: Flow<String>): Flow<LibraryQueryState> =
         combine(query, registry.active) { q, provider -> q to provider }
@@ -45,8 +46,9 @@ class LibraryRepository(
                 when {
                     q.isBlank() -> flowOf(LibraryQueryState.Idle)
                     provider == null -> flowOf(LibraryQueryState.Error("No provider available"))
-                    else -> provider.search(q)
-                        .map<List<Track>, LibraryQueryState> { LibraryQueryState.Results(it) }
+                    else -> flow {
+                        emit(provider.searchTracks(q).items)
+                    }.map<List<Track>, LibraryQueryState> { LibraryQueryState.Results(it) }
                         .catch { emit(LibraryQueryState.Error(it.message ?: "Search failed")) }
                 }
             }

@@ -3,6 +3,7 @@ package com.naudio.data.provider
 import com.naudio.core.model.AudioSource
 import com.naudio.core.model.Track
 import com.naudio.provider.api.MetadataProvider
+import com.naudio.provider.api.Page
 import com.naudio.provider.api.PlaybackProvider
 import com.naudio.provider.api.ProviderId
 import kotlinx.coroutines.flow.Flow
@@ -17,9 +18,13 @@ class ProviderRegistryTest {
 
     private class FakeMetadataProvider(override val id: ProviderId) : MetadataProvider {
         override val displayName: String = id.value
-        override val isAvailable: Flow<Boolean> = flowOf(true)
-        override fun search(query: String): Flow<List<com.naudio.core.model.Track>> = flowOf(emptyList())
-        override suspend fun lookup(trackId: String): com.naudio.core.model.Track? = null
+        override suspend fun searchTracks(
+            query: String,
+            offset: Int,
+            limit: Int,
+        ): com.naudio.provider.api.Page<com.naudio.core.model.Track> =
+            Page(emptyList(), nextOffset = null)
+        override suspend fun lookupTrack(id: String): com.naudio.core.model.Track? = null
     }
 
     @Test
