@@ -4,6 +4,7 @@ import com.naudio.core.model.AudioSource
 import com.naudio.core.model.Track
 import com.naudio.provider.api.MetadataProvider
 import com.naudio.provider.api.Page
+import com.naudio.provider.api.PageToken
 import com.naudio.provider.api.PlaybackProvider
 import com.naudio.provider.api.ProviderId
 import kotlinx.coroutines.flow.Flow
@@ -20,10 +21,10 @@ class ProviderRegistryTest {
         override val displayName: String = id.value
         override suspend fun searchTracks(
             query: String,
-            offset: Int,
+            token: PageToken?,
             limit: Int,
         ): com.naudio.provider.api.Page<com.naudio.core.model.Track> =
-            Page(emptyList(), nextOffset = null)
+            Page(emptyList(), nextToken = null)
         override suspend fun lookupTrack(id: String): com.naudio.core.model.Track? = null
     }
 

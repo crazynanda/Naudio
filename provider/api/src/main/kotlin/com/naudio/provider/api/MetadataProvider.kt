@@ -16,14 +16,22 @@ interface MetadataProvider {
     val displayName: String
 
     /**
-     * Search the catalog for tracks matching [query]. Returns one page of
-     * [Page.items] starting at [offset]; [Page.nextOffset] is null when the
-     * page is the last one (including the empty case). Failures (network,
-     * transport) throw; an empty catalog result is not a failure.
+     * Search the catalog for tracks matching [query], starting at the page
+     * identified by [token] (null = first page). Returns one page of
+     * [Page.items]; [Page.nextToken] is null when the page is the last one
+     * (including the empty case). Failures (network, transport) throw; an
+     * empty catalog result is not a failure.
+     *
+     * Token discipline: a provider consumes only the [PageToken] kind its own
+     * backend produces (iTunes/MediaStore consume [PageToken.Offset]; a
+     * continuation-based provider consumes [PageToken.Opaque]). An
+     * incompatible token is a caller error (stale/mixed cursor) and must fail
+     * deterministically — implementations must never silently reinterpret it
+     * as a valid cursor for their backend.
      */
     suspend fun searchTracks(
         query: String,
-        offset: Int = 0,
+        token: PageToken? = null,
         limit: Int = 50,
     ): Page<Track>
 

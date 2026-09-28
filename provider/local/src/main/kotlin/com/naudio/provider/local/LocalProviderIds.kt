@@ -7,4 +7,7 @@ object LocalProviderIds {
 
     /** Human-readable name shown in the UI. */
     const val DISPLAY_NAME = "Local Device"
+
+    /** Error message for an incompatible (non-offset) page token. */
+    const val TOKEN_TYPE_ERROR = "Local provider requires PageToken.Offset"
 }

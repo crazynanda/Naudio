@@ -1,0 +1,66 @@
+{
+  "contents": {
+    "tabbedSearchResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "content": {
+              "sectionListRenderer": {
+                "contents": [
+                  {
+                    "musicShelfRenderer": {
+                      "title": { "runs": [{ "text": "Songs" }] },
+                      "contents": [
+                        {
+                          "musicResponsiveListItemRenderer": {
+                            "playlistItemData": { "videoId": "dQw4w9WgXcQ" },
+                            "flexColumns": [
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "Never Gonna Give You Up" }] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "Rick Astley" }] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "Whenever You Need Somebody" }] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "3:33" }] } } }
+                            ],
+                            "thumbnail": {
+                              "musicThumbnailRenderer": {
+                                "thumbnail": {
+                                  "thumbnails": [
+                                    { "url": "https://lh3.googleusercontent.com/cover-w60-h60", "width": 60, "height": 60 },
+                                    { "url": "https://lh3.googleusercontent.com/cover-w544-h544", "width": 544, "height": 544 }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "musicResponsiveListItemRenderer": {
+                            "playlistItemData": { "videoId": "yPYZpwSpKmA" },
+                            "flexColumns": [
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "Together Forever" }] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "Rick Astley" }] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "Whenever You Need Somebody" }] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "3:25" }] } } }
+                            ],
+                            "thumbnail": {
+                              "musicThumbnailRenderer": {
+                                "thumbnail": {
+                                  "thumbnails": [
+                                    { "url": "https://lh3.googleusercontent.com/together-w544-h544", "width": 544, "height": 544 }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

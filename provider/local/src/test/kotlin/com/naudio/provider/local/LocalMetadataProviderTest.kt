@@ -6,6 +6,7 @@ import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import com.naudio.provider.api.PageToken
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -13,6 +14,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -105,19 +107,28 @@ class LocalMetadataProviderTest {
     }
 
     @Test
-    fun `search with no matches returns empty page with null nextOffset`() = runTest {
+    fun `search with no matches returns empty page with null nextToken`() = runTest {
         val provider = newProvider()
         val page = provider.searchTracks("no-such-track")
         assertTrue(page.items.isEmpty())
-        assertNull(page.nextOffset)
+        assertNull(page.nextToken)
     }
 
     @Test
-    fun `search on a full page reports nextOffset`() = runTest {
+    fun `search on a full page reports nextToken`() = runTest {
         val provider = newProvider()
-        val page = provider.searchTracks("Song", offset = 0, limit = 2)
+        val page = provider.searchTracks("Song", token = PageToken.Offset(0), limit = 2)
         assertEquals(2, page.items.size)
-        assertEquals(2, page.nextOffset)
+        assertEquals(PageToken.Offset(2), page.nextToken)
+    }
+
+    @Test
+    fun `search rejects an opaque token instead of reinterpreting it`() = runTest {
+        val provider = newProvider()
+        val ex = assertFailsWith<IllegalArgumentException> {
+            provider.searchTracks("Song", token = PageToken.Opaque("continuation-token"))
+        }
+        assertEquals(LocalProviderIds.TOKEN_TYPE_ERROR, ex.message)
     }
 
     @Test
@@ -125,7 +136,7 @@ class LocalMetadataProviderTest {
         val provider = newProvider()
         val page = provider.searchTracks("   ")
         assertTrue(page.items.isEmpty())
-        assertNull(page.nextOffset)
+        assertNull(page.nextToken)
     }
 
     @Test

@@ -14,6 +14,7 @@ import com.naudio.provider.default.DefaultPlaybackProvider
 import com.naudio.provider.itunes.ItunesMetadataProvider
 import com.naudio.provider.local.LocalMetadataProvider
 import com.naudio.provider.local.LocalPlaybackProvider
+import com.naudio.provider.ytmusic.YtMusicMetadataProvider
 import io.ktor.client.HttpClient
 
 /** Manual, provider-based DI. Deliberately not Hilt at this milestone:
@@ -38,6 +39,9 @@ class AppContainer(context: Context) {
         DefaultMetadataProvider(),
         ItunesMetadataProvider(networkClient),
         LocalMetadataProvider(applicationContext),
+        // Catalog metadata only: no YTM playback provider exists, selection
+        // of a YTM result safely resolves no source (same as iTunes).
+        YtMusicMetadataProvider(networkClient),
     )
 
     private val playbackProviders = listOf(

@@ -1,6 +1,7 @@
 package com.naudio.provider.itunes
 
 import com.naudio.core.network.NetworkException
+import com.naudio.provider.api.PageToken
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandler
@@ -54,37 +55,49 @@ class ItunesMetadataProviderTest {
     }
 
     // ------------------------------------------------------------------
-    // 2. full page -> nextOffset = offset + items.size
+    // 2. full page -> nextToken = Offset(offset + items.size)
     // ------------------------------------------------------------------
     @Test
-    fun `search calculates nextOffset when page is full`() = runTest {
+    fun `search calculates nextToken when page is full`() = runTest {
         val provider = provider(respondJson(searchJson(3)))
-        val page = provider.searchTracks("daft punk", offset = 20, limit = 3)
+        val page = provider.searchTracks("daft punk", token = PageToken.Offset(20), limit = 3)
         assertEquals(3, page.items.size)
-        assertEquals(23, page.nextOffset)
+        assertEquals(PageToken.Offset(23), page.nextToken)
     }
 
     // ------------------------------------------------------------------
-    // 3. short page -> nextOffset = null
+    // 3. short page -> nextToken = null
     // iTunes returns all matching results and resultCount equals results.size.
     // ------------------------------------------------------------------
     @Test
-    fun `search returns null nextOffset when fewer results are returned`() = runTest {
+    fun `search returns null nextToken when fewer results are returned`() = runTest {
         val provider = provider(respondJson(searchJson(2)))
         val page = provider.searchTracks("daft punk", limit = 3)
         assertEquals(2, page.items.size)
-        assertNull(page.nextOffset)
+        assertNull(page.nextToken)
     }
 
     // ------------------------------------------------------------------
-    // 4. empty result set -> empty page, null nextOffset
+    // 4. empty result set -> empty page, null nextToken
     // ------------------------------------------------------------------
     @Test
     fun `search returns empty page for zero results`() = runTest {
         val provider = provider(respondJson("""{"resultCount":0,"results":[]}"""))
         val page = provider.searchTracks("zzzzz")
         assertTrue(page.items.isEmpty())
-        assertNull(page.nextOffset)
+        assertNull(page.nextToken)
+    }
+
+    // ------------------------------------------------------------------
+    // 4b. incompatible token type fails deterministically (never reinterpreted)
+    // ------------------------------------------------------------------
+    @Test
+    fun `search rejects an opaque token instead of reinterpreting it`() = runTest {
+        val provider = provider(respondJson(searchJson(1)))
+        val ex = assertFailsWith<IllegalArgumentException> {
+            provider.searchTracks("daft punk", token = PageToken.Opaque("continuation-token"))
+        }
+        assertEquals(ItunesMetadataProvider.TOKEN_TYPE_ERROR, ex.message)
     }
 
     // ------------------------------------------------------------------
@@ -145,7 +158,7 @@ class ItunesMetadataProviderTest {
             requests.add(request)
             respond(searchJson(1), HttpStatusCode.OK, headersOf("Content-Type", "application/json"))
         }
-        provider.searchTracks("daft punk", offset = 25, limit = 10)
+        provider.searchTracks("daft punk", token = PageToken.Offset(25), limit = 10)
         val url = requests.single().url
         assertEquals("https", url.protocol.name)
         assertEquals("itunes.apple.com", url.host)
@@ -212,7 +225,7 @@ class ItunesMetadataProviderTest {
         }
         val page = provider.searchTracks("   ")
         assertTrue(page.items.isEmpty())
-        assertNull(page.nextOffset)
+        assertNull(page.nextToken)
         assertTrue(requests.isEmpty())
     }
 

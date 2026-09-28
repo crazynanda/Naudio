@@ -1,0 +1,45 @@
+{
+  "contents": {
+    "tabbedSearchResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "content": {
+              "sectionListRenderer": {
+                "contents": [
+                  {
+                    "musicShelfRenderer": {
+                      "title": { "runs": [{ "text": "Songs" }] },
+                      "contents": [
+                        {
+                          "musicResponsiveListItemRenderer": {
+                            "playlistItemData": { "videoId": "zx3Mc9Zq4PA" },
+                            "flexColumns": [
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "Cry For Help" }] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "Rick Astley" }] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "Free" }] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [{ "text": "4:22" }] } } }
+                            ],
+                            "thumbnail": {
+                              "musicThumbnailRenderer": {
+                                "thumbnail": {
+                                  "thumbnails": [
+                                    { "url": "https://lh3.googleusercontent.com/free-w544-h544", "width": 544, "height": 544 }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

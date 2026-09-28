@@ -6,6 +6,7 @@ import android.provider.MediaStore
 import com.naudio.core.model.Track
 import com.naudio.provider.api.MetadataProvider
 import com.naudio.provider.api.Page
+import com.naudio.provider.api.PageToken
 import com.naudio.provider.api.ProviderId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -39,10 +40,17 @@ class LocalMetadataProvider(
 
     override suspend fun searchTracks(
         query: String,
-        offset: Int,
+        token: PageToken?,
         limit: Int,
     ): Page<Track> {
-        if (query.isBlank()) return Page(emptyList(), nextOffset = null)
+        if (query.isBlank()) return Page(emptyList(), nextToken = null)
+        // MediaStore pages by native numeric offset only; a continuation token
+        // can never be a valid cursor here and fails deterministically.
+        val offset = when (token) {
+            null -> 0
+            is PageToken.Offset -> token.value
+            is PageToken.Opaque -> throw IllegalArgumentException(LocalProviderIds.TOKEN_TYPE_ERROR)
+        }
         val selection = "${MediaStore.Audio.Media.TITLE} LIKE ?"
         val selectionArgs = arrayOf("%$query%")
         return queryPage(selection, selectionArgs, offset, limit)
@@ -58,7 +66,7 @@ class LocalMetadataProvider(
      * One sorted MediaStore query per page. The requested page is taken as the
      * [offset, offset + limit) slice of the cursor — deterministic across all
      * API levels and provider implementations (some modern MediaProvider builds
-     * reject SQL `LIMIT`/`OFFSET` suffixes in the sort order). [Page.nextOffset]
+     * reject SQL `LIMIT`/`OFFSET` suffixes in the sort order). [Page.nextToken]
      * follows the same short-page-means-last rule as the iTunes provider.
      * Throws [SecurityException] untouched when read permission is missing.
      */
@@ -89,7 +97,7 @@ class LocalMetadataProvider(
                 ).toTrack()
             }
         }
-        val nextOffset = if (items.size < limit) null else offset + items.size
-        Page(items, nextOffset)
+        val next = if (items.size < limit) null else offset + items.size
+        Page(items, next?.let { PageToken.Offset(it) })
     }
 }

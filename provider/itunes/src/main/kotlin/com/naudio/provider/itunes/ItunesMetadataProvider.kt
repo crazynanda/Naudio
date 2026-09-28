@@ -4,6 +4,7 @@ import com.naudio.core.network.NaudioHttpClient
 import com.naudio.core.model.Track
 import com.naudio.provider.api.MetadataProvider
 import com.naudio.provider.api.Page
+import com.naudio.provider.api.PageToken
 import com.naudio.provider.api.ProviderId
 import io.ktor.client.HttpClient
 import io.ktor.client.request.HttpRequestBuilder
@@ -33,10 +34,17 @@ class ItunesMetadataProvider(
 
     override suspend fun searchTracks(
         query: String,
-        offset: Int,
+        token: PageToken?,
         limit: Int,
     ): Page<Track> {
-        if (query.isBlank()) return Page(emptyList(), nextOffset = null)
+        if (query.isBlank()) return Page(emptyList(), nextToken = null)
+        // iTunes pages by native numeric offset only; a continuation token can
+        // never be a valid cursor here and fails deterministically.
+        val offset = when (token) {
+            null -> 0
+            is PageToken.Offset -> token.value
+            is PageToken.Opaque -> throw IllegalArgumentException(TOKEN_TYPE_ERROR)
+        }
         val response = fetch("search") {
             parameter("term", query)
             parameter("entity", "song")
@@ -45,8 +53,8 @@ class ItunesMetadataProvider(
         }
         val results = response.results
         // Full page -> more results may exist; short page -> last page.
-        val nextOffset = if (results.size < limit) null else offset + results.size
-        return Page(results.map { it.toDomain() }, nextOffset)
+        val next = if (results.size < limit) null else offset + results.size
+        return Page(results.map { it.toDomain() }, next?.let { PageToken.Offset(it) })
     }
 
     override suspend fun lookupTrack(id: String): Track? {
@@ -75,5 +83,8 @@ class ItunesMetadataProvider(
 
         /** iTunes Search API root. */
         const val DEFAULT_BASE_URL = "https://itunes.apple.com"
+
+        /** Error message for an incompatible (non-offset) page token. */
+        const val TOKEN_TYPE_ERROR = "iTunes provider requires PageToken.Offset"
     }
 }
