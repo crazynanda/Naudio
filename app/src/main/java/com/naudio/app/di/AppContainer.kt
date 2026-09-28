@@ -12,6 +12,8 @@ import com.naudio.provider.api.ProviderId
 import com.naudio.provider.default.DefaultMetadataProvider
 import com.naudio.provider.default.DefaultPlaybackProvider
 import com.naudio.provider.itunes.ItunesMetadataProvider
+import com.naudio.provider.local.LocalMetadataProvider
+import com.naudio.provider.local.LocalPlaybackProvider
 import io.ktor.client.HttpClient
 
 /** Manual, provider-based DI. Deliberately not Hilt at this milestone:
@@ -35,18 +37,20 @@ class AppContainer(context: Context) {
     private val metadataProviders = listOf(
         DefaultMetadataProvider(),
         ItunesMetadataProvider(networkClient),
+        LocalMetadataProvider(applicationContext),
     )
 
     private val playbackProviders = listOf(
         DefaultPlaybackProvider(),
+        LocalPlaybackProvider(),
     )
 
     val providerRegistry = ProviderRegistry(metadataProviders, playbackProviders).apply {
-        // Milestone 5 app configuration: iTunes is the active catalog source so
-        // Home search queries the online provider. The local library remains
-        // registered as the fallback default; provider-selection UI is a later
-        // milestone. Playback stays independent: DefaultPlaybackProvider is
-        // untouched and iTunes deliberately has no playback provider.
+        // Milestone 6 app configuration: iTunes stays the initially active
+        // catalog source; the user can switch to "Local Device" from the Home
+        // selector, which re-drives search and source resolution through the
+        // same registry. Playback stays independent: DefaultPlaybackProvider
+        // is untouched and iTunes deliberately has no playback provider.
         check(activate(ProviderId(ItunesMetadataProvider.PROVIDER_ID))) { "iTunes provider must be registered" }
     }
 

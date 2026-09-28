@@ -6,6 +6,13 @@
          client in :core:network to reach the iTunes Search API. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Audio permission for the local (MediaStore) provider. Requested at
+         runtime from the app layer only; the provider itself never asks. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
     <application
         android:name=".NaudioApplication"
         android:allowBackup="true"

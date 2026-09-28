@@ -1,9 +1,12 @@
 package com.naudio.app.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -19,6 +24,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -44,6 +52,9 @@ fun HomeScreen(
     onTrackSelected: (Track) -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
+    audioPermissionGranted: Boolean,
+    onRequestAudioPermission: () -> Unit,
+    onSelectProvider: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -69,6 +80,12 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
+            ProviderSelector(
+                providers = state.providers,
+                activeProviderId = state.activeProviderId,
+                onSelectProvider = onSelectProvider,
+            )
+
             OutlinedTextField(
                 value = state.query,
                 onValueChange = onQueryChange,
@@ -85,14 +102,73 @@ fun HomeScreen(
                 modifier = Modifier.padding(16.dp),
             )
 
-            when (val search = state.searchState) {
-                is LibraryQueryState.Idle -> IdleHint()
-                is LibraryQueryState.Loading -> LoadingIndicator()
-                is LibraryQueryState.Results ->
-                    ResultsList(tracks = search.tracks, onTrackSelected = onTrackSelected)
-                is LibraryQueryState.Error -> ErrorPane(message = search.message, onRetry = onRetry)
+            when {
+                !audioPermissionGranted -> PermissionRequiredPane(onRequestAudioPermission)
+                else -> when (val search = state.searchState) {
+                    is LibraryQueryState.Idle -> IdleHint()
+                    is LibraryQueryState.Loading -> LoadingIndicator()
+                    is LibraryQueryState.Results ->
+                        ResultsList(tracks = search.tracks, onTrackSelected = onTrackSelected)
+                    is LibraryQueryState.Error -> ErrorPane(message = search.message, onRetry = onRetry)
+                }
             }
         }
+    }
+}
+
+/**
+ * Minimal provider selector: a TextButton + DropdownMenu next to the provider
+ * label. No provider-management architecture — just activating a ProviderId.
+ */
+@Composable
+private fun ProviderSelector(
+    providers: List<ProviderOption>,
+    activeProviderId: String?,
+    onSelectProvider: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Provider:",
+            style = MaterialTheme.typography.labelMedium,
+        )
+        TextButton(onClick = { expanded = true }) {
+            Text(
+                text = providers.firstOrNull { it.id == activeProviderId }?.displayName
+                    ?: "Select provider",
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            providers.forEach { provider ->
+                DropdownMenuItem(
+                    text = {
+                        Text(if (provider.id == activeProviderId) "● ${provider.displayName}" else provider.displayName)
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelectProvider(provider.id)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/** Shown when media-read permission is missing; the provider is never queried. */
+@Composable
+private fun PermissionRequiredPane(onRequestAudioPermission: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "Audio permission is needed to search this device's music library.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        TextButton(onClick = onRequestAudioPermission) { Text("Grant audio permission") }
     }
 }
 
@@ -169,6 +245,8 @@ private fun HomeScreenPreview() {
             state = HomeUiState(
                 query = "",
                 providerName = "Local library",
+                providers = listOf(ProviderOption("local", "Local library")),
+                activeProviderId = "local",
                 searchState = LibraryQueryState.Idle,
             ),
             playerState = PlayerState(),
@@ -177,6 +255,9 @@ private fun HomeScreenPreview() {
             onTrackSelected = {},
             onTogglePlayPause = {},
             onSeek = {},
+            audioPermissionGranted = true,
+            onRequestAudioPermission = {},
+            onSelectProvider = {},
         )
     }
 }

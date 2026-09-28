@@ -3,8 +3,10 @@ package com.naudio.app.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naudio.core.model.Track
+import com.naudio.data.provider.ProviderRegistry
 import com.naudio.data.repository.LibraryQueryState
 import com.naudio.data.repository.LibraryRepository
+import com.naudio.provider.api.ProviderId
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,10 +19,18 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
+/** One selectable provider entry for the Home screen selector. */
+data class ProviderOption(
+    val id: String,
+    val displayName: String,
+)
+
 /** Immutable UI state for the home screen. */
 data class HomeUiState(
     val query: String = "",
     val providerName: String? = null,
+    val activeProviderId: String? = null,
+    val providers: List<ProviderOption> = emptyList(),
     val searchState: LibraryQueryState = LibraryQueryState.Idle,
 ) {
     val results: List<Track>
@@ -34,6 +44,7 @@ data class HomeUiState(
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class HomeViewModel(
     private val repository: LibraryRepository,
+    private val registry: ProviderRegistry,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -47,11 +58,14 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = combine(
         query,
         repository.activeProviderName(),
+        registry.active,
         search,
-    ) { q, providerName, searchState ->
+    ) { q, providerName, activeProvider, searchState ->
         HomeUiState(
             query = q,
             providerName = providerName,
+            activeProviderId = activeProvider?.id?.value,
+            providers = registry.all().map { ProviderOption(it.id.value, it.displayName) },
             searchState = searchState,
         )
     }.stateIn(
@@ -68,5 +82,10 @@ class HomeViewModel(
     /** Intent: retry after an error (re-subscribes the search stream). */
     fun onRetry() {
         retrySignal.update { it + 1 }
+    }
+
+    /** Intent: switch the active provider through the existing registry. */
+    fun onSelectProvider(id: String) {
+        registry.activate(ProviderId(id))
     }
 }
