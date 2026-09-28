@@ -81,18 +81,21 @@ class ProviderRegistryTest {
     }
 
     @Test
-    fun `playback provider falls back to active provider id`() {
+    fun `playback provider does not fall back to the active provider id`() {
         val playback = FakePlaybackProvider(ProviderId("a"))
         val registry = ProviderRegistry(
             listOf(FakeMetadataProvider(ProviderId("a")), FakeMetadataProvider(ProviderId("b"))),
             listOf(playback),
         )
 
-        assertEquals(playback, registry.playbackProvider(ProviderId("b")))
+        // Playback routing is exact-match only: the active metadata provider
+        // must never lend its playback capability to another provider's track.
+        assertNull(registry.playbackProvider(ProviderId("b")))
+        assertEquals(playback, registry.playbackProvider(ProviderId("a")))
     }
 
     @Test
-    fun `playback provider unknown id returns null when no active fallback`() {
+    fun `playback provider unknown id returns null`() {
         val registry = ProviderRegistry(emptyList(), listOf(FakePlaybackProvider(ProviderId("a"))))
 
         assertNull(registry.playbackProvider(ProviderId("nope")))

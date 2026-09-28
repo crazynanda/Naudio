@@ -59,6 +59,7 @@ private fun HomeRoute(container: AppContainer) {
     }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val playerState by playbackViewModel.playbackState.collectAsStateWithLifecycle()
+    val playbackError by playbackViewModel.playbackError.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Lifecycle-safe media permission state: held in compose state, refreshed
@@ -75,11 +76,13 @@ private fun HomeRoute(container: AppContainer) {
     HomeScreen(
         state = state,
         playerState = playerState,
+        playbackError = playbackError,
         onQueryChange = viewModel::onQueryChange,
         onRetry = viewModel::onRetry,
         onTrackSelected = playbackViewModel::onTrackSelected,
         onTogglePlayPause = playbackViewModel::onTogglePlayPause,
         onSeek = playbackViewModel::onSeek,
+        onPlaybackErrorShown = playbackViewModel::onErrorShown,
         audioPermissionGranted = audioPermissionGranted,
         onRequestAudioPermission = {
             permissionLauncher.launch(audioPermission())

@@ -35,6 +35,10 @@ data class PlayerState(
 ) {
     val isSeekable: Boolean
         get() = durationMs > 0L
+
+    /** True while the player is loading/buffering media (spinner state). */
+    val isBuffering: Boolean
+        get() = status == PlaybackStatus.BUFFERING
 }
 
 /**

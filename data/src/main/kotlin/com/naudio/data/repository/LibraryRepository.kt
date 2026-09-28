@@ -4,7 +4,7 @@ import com.naudio.core.model.AudioSource
 import com.naudio.core.model.Track
 import com.naudio.data.provider.ProviderRegistry
 import com.naudio.provider.api.MetadataProvider
-import com.naudio.provider.api.PlaybackProvider
+import com.naudio.provider.api.ProviderId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
@@ -54,13 +54,13 @@ class LibraryRepository(
             }
 
     /**
-     * Resolve the playable source for [track] through the active provider's
-     * playback capability, or null when no playback provider can serve it.
-     * Never throws for "unresolvable"; failures degrade to null.
+     * Resolve the playable source for [track] through the playback provider
+     * registered for [Track.providerId] — the provider that produced the
+     * track, never whichever metadata provider happens to be active.
+     * Null when no playback provider is registered for that id (metadata-only
+     * providers) or when the provider itself cannot resolve the track.
+     * Never throws for "unresolvable"; resolution failures degrade to null.
      */
     suspend fun resolveSource(track: Track): AudioSource? =
-        activePlaybackProvider()?.resolve(track)
-
-    private fun activePlaybackProvider(): PlaybackProvider? =
-        registry.activeProvider?.let { registry.playbackProvider(it.id) }
+        registry.playbackProvider(ProviderId(track.providerId))?.resolve(track)
 }

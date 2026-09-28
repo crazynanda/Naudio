@@ -20,9 +20,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,18 +51,30 @@ import com.naudio.data.repository.LibraryQueryState
 fun HomeScreen(
     state: HomeUiState,
     playerState: PlayerState,
+    playbackError: PlaybackError?,
     onQueryChange: (String) -> Unit,
     onRetry: () -> Unit,
     onTrackSelected: (Track) -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
+    onPlaybackErrorShown: () -> Unit,
     audioPermissionGranted: Boolean,
     onRequestAudioPermission: () -> Unit,
     onSelectProvider: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    // Playback-resolution failures (no playback provider for the track, or the
+    // provider could not resolve it) surface as a one-shot snackbar.
+    LaunchedEffect(playbackError) {
+        if (playbackError != null) {
+            snackbarHostState.showSnackbar(message = playbackError.message())
+            onPlaybackErrorShown()
+        }
+    }
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Naudio") },
@@ -68,6 +84,7 @@ fun HomeScreen(
             NowPlayingBar(
                 track = playerState.track,
                 isPlaying = playerState.isPlaying,
+                isBuffering = playerState.isBuffering,
                 positionMs = playerState.positionMs,
                 durationMs = playerState.durationMs,
                 onTogglePlayPause = onTogglePlayPause,
@@ -222,6 +239,11 @@ private fun ResultsList(
     }
 }
 
+/** User-facing text for a playback-resolution error. */
+fun PlaybackError.message(): String = when (this) {
+    PlaybackError.UNAVAILABLE -> "Playback isn't available for this item."
+}
+
 @Composable
 private fun ErrorPane(message: String, onRetry: () -> Unit) {
     Column(
@@ -250,11 +272,13 @@ private fun HomeScreenPreview() {
                 searchState = LibraryQueryState.Idle,
             ),
             playerState = PlayerState(),
+            playbackError = null,
             onQueryChange = {},
             onRetry = {},
             onTrackSelected = {},
             onTogglePlayPause = {},
             onSeek = {},
+            onPlaybackErrorShown = {},
             audioPermissionGranted = true,
             onRequestAudioPermission = {},
             onSelectProvider = {},

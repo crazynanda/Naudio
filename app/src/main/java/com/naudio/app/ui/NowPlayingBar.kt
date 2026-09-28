@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -17,11 +19,13 @@ import com.naudio.core.model.Track
 /**
  * Minimal now-playing strip rendered under the results list. Playback is
  * fully delegated via intents; this composable holds no player logic.
+ * Shows a buffering spinner while the player is loading media.
  */
 @Composable
 fun NowPlayingBar(
     track: Track?,
     isPlaying: Boolean,
+    isBuffering: Boolean,
     positionMs: Long,
     durationMs: Long,
     onTogglePlayPause: () -> Unit,
@@ -56,6 +60,14 @@ fun NowPlayingBar(
         }
         TextButton(onClick = onTogglePlayPause) {
             Text(if (isPlaying) "Pause" else "Play")
+        }
+        if (isBuffering) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .size(20.dp),
+                strokeWidth = 2.dp,
+            )
         }
     }
 }

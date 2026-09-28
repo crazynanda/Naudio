@@ -50,13 +50,13 @@ class ProviderRegistry(
 
     /**
      * Resolve the playback provider for [id], or null if not registered.
-     * Falls back to the active metadata provider's id so a single combined
-     * provider is found without extra registration ceremony.
+     * Exact-match only: playback routing follows the id of the provider that
+     * produced a track, so no fallback to the active metadata provider — a
+     * track must never be played by a different provider's playback
+     * capability just because that provider is currently selected.
      */
-    fun playbackProvider(id: ProviderId): PlaybackProvider? {
-        playbackProvidersById[id]?.let { return it }
-        return playbackProvidersById[_active.value?.id] ?: return null
-    }
+    fun playbackProvider(id: ProviderId): PlaybackProvider? =
+        playbackProvidersById[id]
 
     /** All registered metadata providers in registration order. */
     fun all(): List<MetadataProvider> = registered.toList()

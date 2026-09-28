@@ -12,7 +12,7 @@ import com.naudio.provider.api.ProviderId
  */
 class DefaultMetadataProvider : MetadataProvider {
 
-    override val id: ProviderId = ProviderId.Default
+    override val id: ProviderId = DefaultPlaybackProvider.ID
 
     override val displayName: String = "Local library"
 
@@ -41,7 +41,7 @@ class DefaultMetadataProvider : MetadataProvider {
     private companion object {
         val demoTrack = Track(
             id = DefaultPlaybackProvider.TEST_TRACK_ID,
-            providerId = "local",
+            providerId = DefaultPlaybackProvider.ID.value,
             title = "Test Tone",
             artist = "Naudio Test",
             durationMs = TEST_TONE_DURATION_MS,

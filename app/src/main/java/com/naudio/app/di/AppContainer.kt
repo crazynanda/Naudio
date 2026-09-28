@@ -12,6 +12,7 @@ import com.naudio.provider.api.ProviderId
 import com.naudio.provider.default.DefaultMetadataProvider
 import com.naudio.provider.default.DefaultPlaybackProvider
 import com.naudio.provider.itunes.ItunesMetadataProvider
+import com.naudio.provider.itunes.ItunesPlaybackProvider
 import com.naudio.provider.local.LocalMetadataProvider
 import com.naudio.provider.local.LocalPlaybackProvider
 import com.naudio.provider.ytmusic.YtMusicMetadataProvider
@@ -32,29 +33,31 @@ class AppContainer(context: Context) {
         NaudioHttpClient.create()
     }
 
-    // Providers: registration order = default priority. The local provider
-    // stays first (default); online providers augment the catalog. iTunes is
-    // metadata-only: there is deliberately no iTunes PlaybackProvider.
+    // Providers: registration order = default priority. Online providers
+    // augment the catalog. Playback capabilities are registered separately and
+    // route by Track.providerId — never by the active metadata provider.
     private val metadataProviders = listOf(
         DefaultMetadataProvider(),
         ItunesMetadataProvider(networkClient),
         LocalMetadataProvider(applicationContext),
-        // Catalog metadata only: no YTM playback provider exists, selection
-        // of a YTM result safely resolves no source (same as iTunes).
+        // Catalog metadata only: no YTM playback provider exists (and none may
+        // be added), so selecting a YTM result safely resolves no source.
         YtMusicMetadataProvider(networkClient),
     )
 
     private val playbackProviders = listOf(
         DefaultPlaybackProvider(),
         LocalPlaybackProvider(),
+        // Resolves the iTunes-served 30 s preview stream for iTunes tracks.
+        ItunesPlaybackProvider(networkClient),
     )
 
     val providerRegistry = ProviderRegistry(metadataProviders, playbackProviders).apply {
-        // Milestone 6 app configuration: iTunes stays the initially active
+        // Milestone 8 app configuration: iTunes stays the initially active
         // catalog source; the user can switch to "Local Device" from the Home
-        // selector, which re-drives search and source resolution through the
-        // same registry. Playback stays independent: DefaultPlaybackProvider
-        // is untouched and iTunes deliberately has no playback provider.
+        // selector, which re-drives search through the same registry. Playback
+        // routing is independent of the active catalog: it follows each
+        // track's own providerId through the playback providers above.
         check(activate(ProviderId(ItunesMetadataProvider.PROVIDER_ID))) { "iTunes provider must be registered" }
     }
 

@@ -44,6 +44,15 @@ class PlayerStateMapperTest {
         assertTrue(PlayerState(durationMs = 3_000).isSeekable)
         assertFalse(PlayerState(durationMs = 0).isSeekable)
     }
+
+    @Test
+    fun `isBuffering is true only while buffering`() {
+        assertTrue(PlayerState(status = PlaybackStatus.BUFFERING).isBuffering)
+        assertFalse(PlayerState(status = PlaybackStatus.IDLE).isBuffering)
+        assertFalse(PlayerState(status = PlaybackStatus.READY).isBuffering)
+        assertFalse(PlayerState(status = PlaybackStatus.ENDED).isBuffering)
+        assertFalse(PlayerState(status = PlaybackStatus.ERROR).isBuffering)
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

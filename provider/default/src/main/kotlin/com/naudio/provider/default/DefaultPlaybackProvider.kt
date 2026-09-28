@@ -12,7 +12,7 @@ import com.naudio.provider.api.ProviderId
  */
 class DefaultPlaybackProvider : PlaybackProvider {
 
-    override val id: ProviderId = ProviderId.Default
+    override val id: ProviderId = ID
 
     override suspend fun resolve(track: Track): AudioSource? =
         when (track.id) {
@@ -21,6 +21,9 @@ class DefaultPlaybackProvider : PlaybackProvider {
         }
 
     companion object {
+        /** Shared provider id: metadata and playback capabilities route by it. */
+        val ID: ProviderId = ProviderId.Default
+
         /** Id of the canned demo track served by [DefaultMetadataProvider]. */
         const val TEST_TRACK_ID = "local-test"
 

@@ -25,4 +25,6 @@ internal data class ItunesTrackDto(
     val collectionName: String? = null,
     val artworkUrl100: String? = null,
     val trackTimeMillis: Long = 0L,
+    /** iTunes-served 30-second preview stream URL; absent on some entries. */
+    val previewUrl: String? = null,
 )
