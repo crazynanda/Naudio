@@ -21,6 +21,21 @@ interface TrackDao {
     )
     fun observeFavorites(): Flow<List<TrackEntity>>
 
+    /**
+     * Fetch rows for a set of provider-aware identities (see TrackKey). The
+     * two lists are matched independently — the result may be a superset of
+     * the requested (providerId, trackId) pairs; callers filter by exact
+     * pairs. Returns only rows that exist.
+     */
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE provider_id IN (:providerIds)
+          AND id IN (:trackIds)
+        """
+    )
+    suspend fun byIds(providerIds: List<String>, trackIds: List<String>): List<TrackEntity>
+
     /** Insert or replace a full track row. */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertTrack(track: TrackEntity)

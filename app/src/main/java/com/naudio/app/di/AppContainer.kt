@@ -8,6 +8,7 @@ import com.naudio.core.player.PlaybackController
 import com.naudio.data.provider.ProviderRegistry
 import com.naudio.data.repository.FavoritesRepository
 import com.naudio.data.repository.LibraryRepository
+import com.naudio.data.repository.QueueRepository
 import com.naudio.provider.api.ProviderId
 import com.naudio.provider.default.DefaultMetadataProvider
 import com.naudio.provider.default.DefaultPlaybackProvider
@@ -71,6 +72,11 @@ class AppContainer(context: Context) {
 
     val favoritesRepository: FavoritesRepository by lazy {
         FavoritesRepository(database.trackDao())
+    }
+
+    // Persistent playback queue storage (M10): shares the app-lifetime DB.
+    val queueRepository: QueueRepository by lazy {
+        QueueRepository(database.queueDao(), database.trackDao())
     }
 
     // App-lifetime playback controller; the service owns the real player.

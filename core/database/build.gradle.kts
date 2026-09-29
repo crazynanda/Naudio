@@ -24,6 +24,12 @@ android {
         // Schema export for this database (version 1) — tracked in source control.
         arg("room.schemaLocation", "$projectDir/schemas")
     }
+
+    sourceSets {
+        // Expose exported schemas to androidTest so MigrationTestHelper can
+        // create a real v1 database and migrate it to the current version.
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
 }
 
 dependencies {
@@ -39,4 +45,5 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation("androidx.room:room-testing:2.8.4")
 }

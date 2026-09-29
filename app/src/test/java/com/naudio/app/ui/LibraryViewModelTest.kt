@@ -140,6 +140,11 @@ class LibraryViewModelTest {
 
         override fun observeFavorites() = backing
 
+        override suspend fun byIds(
+            providerIds: List<String>,
+            trackIds: List<String>,
+        ): List<TrackEntity> = rows.values.filter { it.providerId in providerIds && it.id in trackIds }
+
         override suspend fun upsertTrack(track: TrackEntity) {
             rows[track.providerId to track.id] = track
             publish()

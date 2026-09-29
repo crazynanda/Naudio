@@ -1,5 +1,6 @@
 package com.naudio.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import com.naudio.app.playback.PlaybackError
 import com.naudio.app.ui.theme.NaudioTheme
 import com.naudio.core.model.Track
 import com.naudio.core.player.PlayerState
@@ -54,6 +56,9 @@ fun LibraryScreen(
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    // System Back from Library returns Home; the visible Back button below
+    // keeps its existing behavior.
+    BackHandler(onBack = onBack)
     LaunchedEffect(playbackError) {
         if (playbackError != null) {
             snackbarHostState.showSnackbar(message = playbackError.message())

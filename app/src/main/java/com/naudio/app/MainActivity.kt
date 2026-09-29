@@ -75,6 +75,7 @@ private fun NaudioRoute(container: AppContainer) {
             playbackController = container.playbackController,
             libraryRepository = container.libraryRepository,
             favoritesRepository = container.favoritesRepository,
+            queueRepository = container.queueRepository,
         )
     }
 

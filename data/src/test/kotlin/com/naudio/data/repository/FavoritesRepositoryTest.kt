@@ -126,6 +126,13 @@ class FavoritesRepositoryTest {
             rows.filter { it.isFavorite }.sortedByDescending { it.savedAt ?: 0L }
         }
 
+        override suspend fun byIds(
+            providerIds: List<String>,
+            trackIds: List<String>,
+        ): List<TrackEntity> = state.value.filter {
+            it.providerId in providerIds && it.id in trackIds
+        }
+
         /** Models @Insert(REPLACE): replaces the row with the same composite key. */
         override suspend fun upsertTrack(track: TrackEntity) {
             upsertWasCalled = true
