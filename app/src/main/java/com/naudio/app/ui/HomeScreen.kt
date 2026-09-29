@@ -52,15 +52,20 @@ fun HomeScreen(
     state: HomeUiState,
     playerState: PlayerState,
     playbackError: PlaybackError?,
+    isCurrentTrackFavorite: Boolean,
     onQueryChange: (String) -> Unit,
     onRetry: () -> Unit,
     onTrackSelected: (Track) -> Unit,
     onTogglePlayPause: () -> Unit,
+    onSkipToNext: () -> Unit,
+    onSkipToPrevious: () -> Unit,
+    onToggleFavorite: () -> Unit,
     onSeek: (Long) -> Unit,
     onPlaybackErrorShown: () -> Unit,
     audioPermissionGranted: Boolean,
     onRequestAudioPermission: () -> Unit,
     onSelectProvider: (String) -> Unit,
+    onOpenLibrary: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -78,6 +83,9 @@ fun HomeScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Naudio") },
+                actions = {
+                    TextButton(onClick = onOpenLibrary) { Text("Library") }
+                },
             )
         },
         bottomBar = {
@@ -87,7 +95,11 @@ fun HomeScreen(
                 isBuffering = playerState.isBuffering,
                 positionMs = playerState.positionMs,
                 durationMs = playerState.durationMs,
+                isFavorite = isCurrentTrackFavorite,
+                onToggleFavorite = onToggleFavorite,
+                onSkipToPrevious = onSkipToPrevious,
                 onTogglePlayPause = onTogglePlayPause,
+                onSkipToNext = onSkipToNext,
                 onSeek = onSeek,
             )
         },
@@ -221,7 +233,10 @@ private fun ResultsList(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        items(tracks, key = { it.id }) { track ->
+        // Positional identity: providers can return the same track id twice
+        // (e.g. YouTube Music lists a song and a video with one videoId), so
+        // keying by id crashes LazyColumn on duplicate keys.
+        items(tracks) { track ->
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -239,9 +254,10 @@ private fun ResultsList(
     }
 }
 
-/** User-facing text for a playback-resolution error. */
+/** User-facing text for a playback error. */
 fun PlaybackError.message(): String = when (this) {
     PlaybackError.UNAVAILABLE -> "Playback isn't available for this item."
+    PlaybackError.UNRESOLVABLE -> "Couldn't play this item — check your connection and try again."
 }
 
 @Composable
@@ -273,15 +289,20 @@ private fun HomeScreenPreview() {
             ),
             playerState = PlayerState(),
             playbackError = null,
+            isCurrentTrackFavorite = false,
             onQueryChange = {},
             onRetry = {},
             onTrackSelected = {},
             onTogglePlayPause = {},
+            onSkipToNext = {},
+            onSkipToPrevious = {},
+            onToggleFavorite = {},
             onSeek = {},
             onPlaybackErrorShown = {},
             audioPermissionGranted = true,
             onRequestAudioPermission = {},
             onSelectProvider = {},
+            onOpenLibrary = {},
         )
     }
 }

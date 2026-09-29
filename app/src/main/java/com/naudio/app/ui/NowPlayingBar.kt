@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -17,9 +18,10 @@ import androidx.compose.ui.unit.dp
 import com.naudio.core.model.Track
 
 /**
- * Minimal now-playing strip rendered under the results list. Playback is
+ * Minimal now-playing strip rendered under the screens' content. Playback is
  * fully delegated via intents; this composable holds no player logic.
- * Shows a buffering spinner while the player is loading media.
+ * Controls: favorite (heart), previous, play/pause, next — plus the seek bar
+ * and a buffering spinner while the player is loading media.
  */
 @Composable
 fun NowPlayingBar(
@@ -28,7 +30,11 @@ fun NowPlayingBar(
     isBuffering: Boolean,
     positionMs: Long,
     durationMs: Long,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onSkipToPrevious: () -> Unit,
     onTogglePlayPause: () -> Unit,
+    onSkipToNext: () -> Unit,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -58,13 +64,24 @@ fun NowPlayingBar(
                 )
             }
         }
+        // Favorite toggle: provider-aware identity lives in the ViewModel;
+        // YTM (unplayable) tracks are favoritable like any other.
+        TextButton(onClick = onToggleFavorite) {
+            Text(if (isFavorite) "♥" else "♡")
+        }
+        TextButton(onClick = onSkipToPrevious) {
+            Text("Prev")
+        }
         TextButton(onClick = onTogglePlayPause) {
             Text(if (isPlaying) "Pause" else "Play")
+        }
+        TextButton(onClick = onSkipToNext) {
+            Text("Next")
         }
         if (isBuffering) {
             CircularProgressIndicator(
                 modifier = Modifier
-                    .padding(start = 8.dp)
+                    .padding(start = 4.dp)
                     .size(20.dp),
                 strokeWidth = 2.dp,
             )

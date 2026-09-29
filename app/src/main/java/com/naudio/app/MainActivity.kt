@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -24,6 +25,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.naudio.app.di.AppContainer
 import com.naudio.app.ui.HomeScreen
 import com.naudio.app.ui.HomeViewModel
+import com.naudio.app.ui.LibraryScreen
+import com.naudio.app.ui.LibraryViewModel
 import com.naudio.app.ui.PlaybackViewModel
 import com.naudio.app.ui.theme.NaudioTheme
 
@@ -36,31 +39,61 @@ class MainActivity : ComponentActivity() {
         setContent {
             NaudioTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    HomeRoute(container = container)
+                    NaudioRoute(container = container)
                 }
             }
         }
     }
 }
 
+/** The two screens of the app; M9 navigation is a simple state switch. */
+private enum class Screen { HOME, LIBRARY }
+
+/**
+ * Minimal state-based navigation (no Navigation Compose — the app has exactly
+ * two screens and the existing architecture is a single-activity Compose
+ * route). Both ViewModels are activity-scoped so playback (and the runtime
+ * queue) survives switching screens.
+ */
 @Composable
-private fun HomeRoute(container: AppContainer) {
-    val viewModel: HomeViewModel = viewModel {
+private fun NaudioRoute(container: AppContainer) {
+    var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
+
+    val homeViewModel: HomeViewModel = viewModel {
         HomeViewModel(
             repository = container.libraryRepository,
             registry = container.providerRegistry,
+        )
+    }
+    val libraryViewModel: LibraryViewModel = viewModel {
+        LibraryViewModel(
+            favoritesRepository = container.favoritesRepository,
         )
     }
     val playbackViewModel: PlaybackViewModel = viewModel {
         PlaybackViewModel(
             playbackController = container.playbackController,
             libraryRepository = container.libraryRepository,
+            favoritesRepository = container.favoritesRepository,
         )
     }
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    val homeState by homeViewModel.uiState.collectAsStateWithLifecycle()
+    val libraryState by libraryViewModel.uiState.collectAsStateWithLifecycle()
     val playerState by playbackViewModel.playbackState.collectAsStateWithLifecycle()
     val playbackError by playbackViewModel.playbackError.collectAsStateWithLifecycle()
+    val playbackUiState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // The now-playing bar shows the queue's current track — even when that
+    // item could not be resolved (e.g. a YouTube Music favorite), so it stays
+    // visible and favoritable — falling back to the player's loaded track.
+    val barTrack = playbackUiState.currentTrack ?: playerState.track
+    val barPlayerState = if (barTrack != playerState.track) {
+        playerState.copy(track = barTrack)
+    } else {
+        playerState
+    }
 
     // Lifecycle-safe media permission state: held in compose state, refreshed
     // when the composable re-enters composition (user may grant in Settings),
@@ -73,22 +106,50 @@ private fun HomeRoute(container: AppContainer) {
         ActivityResultContracts.RequestPermission(),
     ) { audioPermissionGranted = it || context.hasAudioPermission() }
 
-    HomeScreen(
-        state = state,
-        playerState = playerState,
-        playbackError = playbackError,
-        onQueryChange = viewModel::onQueryChange,
-        onRetry = viewModel::onRetry,
-        onTrackSelected = playbackViewModel::onTrackSelected,
-        onTogglePlayPause = playbackViewModel::onTogglePlayPause,
-        onSeek = playbackViewModel::onSeek,
-        onPlaybackErrorShown = playbackViewModel::onErrorShown,
-        audioPermissionGranted = audioPermissionGranted,
-        onRequestAudioPermission = {
-            permissionLauncher.launch(audioPermission())
-        },
-        onSelectProvider = viewModel::onSelectProvider,
-    )
+    when (screen) {
+        Screen.HOME -> HomeScreen(
+            state = homeState,
+            playerState = barPlayerState,
+            playbackError = playbackError,
+            isCurrentTrackFavorite = playbackUiState.isFavorite,
+            onQueryChange = homeViewModel::onQueryChange,
+            onRetry = homeViewModel::onRetry,
+            onTrackSelected = playbackViewModel::onTrackSelected,
+            onTogglePlayPause = playbackViewModel::onTogglePlayPause,
+            onSkipToNext = playbackViewModel::skipToNext,
+            onSkipToPrevious = playbackViewModel::skipToPrevious,
+            onToggleFavorite = playbackViewModel::onToggleFavorite,
+            onSeek = playbackViewModel::onSeek,
+            onPlaybackErrorShown = playbackViewModel::onErrorShown,
+            audioPermissionGranted = audioPermissionGranted,
+            onRequestAudioPermission = {
+                permissionLauncher.launch(audioPermission())
+            },
+            onSelectProvider = homeViewModel::onSelectProvider,
+            onOpenLibrary = { screen = Screen.LIBRARY },
+        )
+
+        Screen.LIBRARY -> LibraryScreen(
+            state = libraryState,
+            playerState = barPlayerState,
+            playbackError = playbackError,
+            isCurrentTrackFavorite = playbackUiState.isFavorite,
+            onBack = { screen = Screen.HOME },
+            // Tapping a favorite queues the whole favorites list and starts
+            // at the tapped position.
+            onTrackSelected = { index ->
+                playbackViewModel.onLibraryTrackSelected(libraryState.favorites, index)
+            },
+            onTogglePlayPause = playbackViewModel::onTogglePlayPause,
+            onSkipToNext = playbackViewModel::skipToNext,
+            onSkipToPrevious = playbackViewModel::skipToPrevious,
+            onToggleFavorite = playbackViewModel::onToggleFavorite,
+            onSeek = playbackViewModel::onSeek,
+            onPlaybackErrorShown = playbackViewModel::onErrorShown,
+            // Long-press a favorite to remove it (provider-aware identity).
+            onRemoveFavorite = libraryViewModel::onRemoveFavorite,
+        )
+    }
 }
 
 /** The media-read permission for this OS version (13+ uses the audio-scoped one). */

@@ -18,6 +18,16 @@ class FavoritesRepository(private val trackDao: TrackDao) {
     fun observeFavorites(): Flow<List<Track>> =
         trackDao.observeFavorites().map { entities -> entities.map(TrackMapper::toDomain) }
 
+    /**
+     * Emits the set of favorite identities (see [TrackKey]) whenever favorites
+     * change. Lets the UI resolve the current track's favorite state in O(1)
+     * without loading full track rows.
+     */
+    fun observeFavoriteIds(): Flow<Set<TrackKey>> =
+        trackDao.observeFavorites().map { entities ->
+            entities.mapTo(HashSet()) { TrackKey(providerId = it.providerId, trackId = it.id) }
+        }
+
     /** Toggle a track's favorite state.
      *
      * - Favorite→favorite re-upserts the full entity (keeps metadata intact).
@@ -25,8 +35,15 @@ class FavoritesRepository(private val trackDao: TrackDao) {
      */
     suspend fun toggleFavorite(track: Track, isFavorite: Boolean) {
         if (isFavorite) {
-            // Favorite: upsert the full metadata so nothing is ever erased.
-            trackDao.upsertTrack(TrackMapper.toEntity(track))
+            // Favorite: upsert the full metadata so nothing is ever erased,
+            // with the favorite flag and savedAt set (the mapper alone yields a
+            // non-favorited entity, which REPLACE would persist as such).
+            trackDao.upsertTrack(
+                TrackMapper.toEntity(track).copy(
+                    isFavorite = true,
+                    savedAt = System.currentTimeMillis(),
+                ),
+            )
         } else {
             // Unfavorite: update only the favorite state and clear savedAt.
             trackDao.updateFavorite(
