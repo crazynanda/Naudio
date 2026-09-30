@@ -1,5 +1,6 @@
 package com.naudio.app.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,6 +37,7 @@ fun NowPlayingBar(
     onTogglePlayPause: () -> Unit,
     onSkipToNext: () -> Unit,
     onSeek: (Long) -> Unit,
+    onOpenPlayer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (track == null) return
@@ -43,6 +45,9 @@ fun NowPlayingBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // Tapping the bar (outside the buttons/slider) opens the
+            // full-screen player (M11).
+            .clickable(onClick = onOpenPlayer)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

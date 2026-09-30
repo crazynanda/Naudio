@@ -51,6 +51,7 @@ fun LibraryScreen(
     onSkipToPrevious: () -> Unit,
     onToggleFavorite: () -> Unit,
     onSeek: (Long) -> Unit,
+    onOpenPlayer: () -> Unit,
     onPlaybackErrorShown: () -> Unit,
     onRemoveFavorite: (Track) -> Unit,
     modifier: Modifier = Modifier,
@@ -89,6 +90,7 @@ fun LibraryScreen(
                 onTogglePlayPause = onTogglePlayPause,
                 onSkipToNext = onSkipToNext,
                 onSeek = onSeek,
+                onOpenPlayer = onOpenPlayer,
             )
         },
     ) { innerPadding ->
@@ -161,6 +163,7 @@ private fun LibraryScreenPreview() {
             onSkipToPrevious = {},
             onToggleFavorite = {},
             onSeek = {},
+            onOpenPlayer = {},
             onPlaybackErrorShown = {},
             onRemoveFavorite = {},
         )

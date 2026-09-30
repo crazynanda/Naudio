@@ -424,4 +424,268 @@ class PlaybackCoordinatorTest {
         assertEquals(localC, controller.loadedTrack)
         assertEquals(1, queueDao.items.value.size)
     }
+
+    // ------------------------------------------------------------------
+    // M11: jumpToQueueIndex
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `jumpToQueueIndex resolves and loads the selected track`() {
+        coordinator.setQueue(listOf(localA, localB, localC), startIndex = 0)
+        advanceUntilIdle()
+
+        coordinator.jumpToQueueIndex(2)
+        advanceUntilIdle()
+
+        assertEquals(2, coordinator.state.value.currentIndex)
+        assertEquals(localC, controller.loadedTrack)
+        assertEquals(2, controller.loadCount)
+        assertEquals(2, queueDao.state.value?.currentIndex)
+    }
+
+    @Test
+    fun `invalid jumpToQueueIndex is a no-op`() {
+        coordinator.setQueue(listOf(localA, localB), startIndex = 0)
+        advanceUntilIdle()
+        val loadsBefore = controller.loadCount
+
+        coordinator.jumpToQueueIndex(-1)
+        coordinator.jumpToQueueIndex(2)
+        coordinator.jumpToQueueIndex(99)
+        advanceUntilIdle()
+
+        assertEquals(0, coordinator.state.value.currentIndex)
+        assertEquals(localA, controller.loadedTrack)
+        assertEquals(loadsBefore, controller.loadCount)
+    }
+
+    @Test
+    fun `jumping to the current index does not unnecessarily reload`() {
+        coordinator.setQueue(listOf(localA, localB), startIndex = 1)
+        advanceUntilIdle()
+        val loadsBefore = controller.loadCount
+
+        coordinator.jumpToQueueIndex(1)
+        advanceUntilIdle()
+
+        assertEquals(1, coordinator.state.value.currentIndex)
+        assertEquals(loadsBefore, controller.loadCount)
+        // Playback resumes (the current item is ensured to be playing).
+        assertEquals(1, controller.playCalls)
+    }
+
+    @Test
+    fun `jump from an empty queue is a no-op`() {
+        coordinator.jumpToQueueIndex(0)
+        advanceUntilIdle()
+
+        assertNull(coordinator.state.value.currentIndex)
+        assertEquals(0, controller.loadCount)
+    }
+
+    // ------------------------------------------------------------------
+    // M11: removeQueueItem — non-current removal never restarts playback
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `removing an item before the current index decrements the index`() {
+        coordinator.setQueue(listOf(localA, localB, localC), startIndex = 2)
+        advanceUntilIdle()
+
+        coordinator.removeQueueItem(0)
+        advanceUntilIdle()
+
+        assertEquals(listOf(localB, localC), coordinator.state.value.queue)
+        assertEquals(1, coordinator.state.value.currentIndex)
+        assertEquals(localC, coordinator.state.value.currentTrack)
+        assertEquals(2, queueDao.items.value.size)
+        assertEquals(1, queueDao.state.value?.currentIndex)
+    }
+
+    @Test
+    fun `removing an item before the current index does not restart playback`() {
+        coordinator.setQueue(listOf(localA, localB, localC), startIndex = 2)
+        advanceUntilIdle()
+        val loadsBefore = controller.loadCount
+
+        coordinator.removeQueueItem(0)
+        advanceUntilIdle()
+
+        assertEquals(loadsBefore, controller.loadCount)
+        assertEquals(localC, controller.loadedTrack)
+    }
+
+    @Test
+    fun `removing an item after the current index preserves the index`() {
+        coordinator.setQueue(listOf(localA, localB, localC), startIndex = 1)
+        advanceUntilIdle()
+
+        coordinator.removeQueueItem(2)
+        advanceUntilIdle()
+
+        assertEquals(listOf(localA, localB), coordinator.state.value.queue)
+        assertEquals(1, coordinator.state.value.currentIndex)
+        assertEquals(localB, coordinator.state.value.currentTrack)
+        assertEquals(1, queueDao.state.value?.currentIndex)
+    }
+
+    @Test
+    fun `removing an item after the current index does not restart playback`() {
+        coordinator.setQueue(listOf(localA, localB, localC), startIndex = 1)
+        advanceUntilIdle()
+        val loadsBefore = controller.loadCount
+
+        coordinator.removeQueueItem(2)
+        advanceUntilIdle()
+
+        assertEquals(loadsBefore, controller.loadCount)
+        assertEquals(localB, controller.loadedTrack)
+    }
+
+    // ------------------------------------------------------------------
+    // M11: removeQueueItem — current-item removal
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `removing the current item advances to the next item and loads it exactly once`() {
+        coordinator.setQueue(listOf(localA, localB, localC), startIndex = 1)
+        advanceUntilIdle()
+
+        coordinator.removeQueueItem(1) // remove B while it plays
+        advanceUntilIdle()
+
+        assertEquals(listOf(localA, localC), coordinator.state.value.queue)
+        assertEquals(1, coordinator.state.value.currentIndex)
+        assertEquals(localC, coordinator.state.value.currentTrack)
+        // Exactly one new load: B -> C, never B again, never a double C.
+        assertEquals(2, controller.loadCount)
+        assertEquals(localC, controller.loadedTrack)
+        assertEquals(1, queueDao.state.value?.currentIndex)
+    }
+
+    @Test
+    fun `removing the current item skips an unplayable successor`() {
+        coordinator.setQueue(listOf(localA, ytmB, localC), startIndex = 0)
+        advanceUntilIdle()
+
+        coordinator.removeQueueItem(0) // remove A -> YTM must be skipped
+        advanceUntilIdle()
+
+        assertEquals(1, coordinator.state.value.currentIndex)
+        assertEquals(localC, controller.loadedTrack)
+        assertEquals(2, controller.loadCount)
+    }
+
+    @Test
+    fun `removing the final current item falls back to the previous item`() {
+        coordinator.setQueue(listOf(localA, localB), startIndex = 1)
+        advanceUntilIdle()
+
+        coordinator.removeQueueItem(1) // remove B (last)
+        advanceUntilIdle()
+
+        assertEquals(listOf(localA), coordinator.state.value.queue)
+        assertEquals(0, coordinator.state.value.currentIndex)
+        assertEquals(localA, controller.loadedTrack)
+        assertEquals(2, controller.loadCount)
+        assertEquals(0, queueDao.state.value?.currentIndex)
+    }
+
+    @Test
+    fun `removing the only item produces an empty no-position state and stops`() {
+        coordinator.setQueue(listOf(localA), startIndex = 0)
+        advanceUntilIdle()
+
+        coordinator.removeQueueItem(0)
+        advanceUntilIdle()
+
+        assertTrue(coordinator.state.value.queue.isEmpty())
+        assertNull(coordinator.state.value.currentIndex)
+        assertNull(coordinator.state.value.currentTrack)
+        // Nothing persisted: no rows, no position.
+        assertTrue(queueDao.items.value.isEmpty())
+        assertNull(queueDao.state.value?.currentIndex)
+        // The session auto-advance gate is closed: a stray ENDED cannot
+        // resurrect playback.
+        val loadsBefore = controller.loadCount
+        controller.emitStatus(PlaybackStatus.ENDED)
+        advanceUntilIdle()
+        assertEquals(loadsBefore, controller.loadCount)
+    }
+
+    @Test
+    fun `invalid removal is a no-op`() {
+        coordinator.setQueue(listOf(localA, localB), startIndex = 0)
+        advanceUntilIdle()
+        val loadsBefore = controller.loadCount
+
+        coordinator.removeQueueItem(-1)
+        coordinator.removeQueueItem(2)
+        coordinator.removeQueueItem(99)
+        advanceUntilIdle()
+
+        assertEquals(listOf(localA, localB), coordinator.state.value.queue)
+        assertEquals(0, coordinator.state.value.currentIndex)
+        assertEquals(loadsBefore, controller.loadCount)
+        assertEquals(2, queueDao.items.value.size)
+    }
+
+    // ------------------------------------------------------------------
+    // M11: persistence consistency under rapid mutations
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `rapid queue mutations leave Room consistent with memory`() {
+        val localD = localA.copy(id = "d1", title = "D")
+        coordinator.setQueue(listOf(localA, localB, localC, localD), startIndex = 2)
+        advanceUntilIdle()
+
+        // remove -> remove -> jump -> remove with no idle advance in between.
+        coordinator.removeQueueItem(0)
+        coordinator.removeQueueItem(0)
+        coordinator.jumpToQueueIndex(1)
+        coordinator.removeQueueItem(0)
+        advanceUntilIdle()
+
+        val state = coordinator.state.value
+        assertEquals(1, state.queue.size)
+        assertEquals(0, state.currentIndex)
+        // Persisted queue/index combination matches the in-memory state.
+        assertEquals(1, queueDao.items.value.size)
+        assertEquals(state.currentTrack?.id, queueDao.items.value.first().trackId)
+        assertEquals(state.currentIndex, queueDao.state.value?.currentIndex)
+    }
+
+    @Test
+    fun `queue rewrite during removal preserves favorite state`() {
+        val favorites = testFavoritesRepository(trackDao)
+        testScope.launch { favorites.toggleFavorite(localB, true) }
+        advanceUntilIdle()
+
+        coordinator.setQueue(listOf(localA, localB, localC), startIndex = 0)
+        advanceUntilIdle()
+        coordinator.removeQueueItem(0)
+        advanceUntilIdle()
+
+        val rowB = trackDao.rows[localB.providerId to localB.id]!!
+        assertTrue(rowB.isFavorite)
+    }
+
+    @Test
+    fun `removal on a restored queue persists the renumbered queue`() {
+        seedQueue(localA, localB, currentIndex = 1)
+        coordinator = newCoordinator()
+        advanceUntilIdle()
+
+        coordinator.removeQueueItem(0)
+        advanceUntilIdle()
+
+        assertEquals(listOf(localB), coordinator.state.value.queue)
+        assertEquals(0, coordinator.state.value.currentIndex)
+        assertEquals(1, queueDao.items.value.size)
+        assertEquals(0, queueDao.state.value?.currentIndex)
+        // Removal of a non-current item must not have started playback.
+        assertEquals(0, controller.loadCount)
+        assertEquals(0, controller.playCalls)
+    }
 }

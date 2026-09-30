@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -28,6 +29,7 @@ import com.naudio.app.ui.HomeViewModel
 import com.naudio.app.ui.LibraryScreen
 import com.naudio.app.ui.LibraryViewModel
 import com.naudio.app.ui.PlaybackViewModel
+import com.naudio.app.ui.PlayerScreen
 import com.naudio.app.ui.theme.NaudioTheme
 
 class MainActivity : ComponentActivity() {
@@ -46,18 +48,21 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** The two screens of the app; M9 navigation is a simple state switch. */
-private enum class Screen { HOME, LIBRARY }
+/** The screens of the app; navigation is a simple state switch. */
+private enum class Screen { HOME, LIBRARY, PLAYER }
 
 /**
  * Minimal state-based navigation (no Navigation Compose — the app has exactly
- * two screens and the existing architecture is a single-activity Compose
- * route). Both ViewModels are activity-scoped so playback (and the runtime
+ * three screens and the existing architecture is a single-activity Compose
+ * route). ViewModels are activity-scoped so playback (and the persistent
  * queue) survives switching screens.
  */
 @Composable
 private fun NaudioRoute(container: AppContainer) {
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
+    // The full-screen player is an overlay on top of HOME or LIBRARY; the
+    // screen it was opened from is remembered so system Back returns there.
+    var playerOrigin by rememberSaveable { mutableStateOf(Screen.HOME) }
 
     val homeViewModel: HomeViewModel = viewModel {
         HomeViewModel(
@@ -107,6 +112,19 @@ private fun NaudioRoute(container: AppContainer) {
         ActivityResultContracts.RequestPermission(),
     ) { audioPermissionGranted = it || context.hasAudioPermission() }
 
+    fun openPlayer() {
+        // Remember where the player was opened from so Back returns there.
+        if (screen != Screen.PLAYER) playerOrigin = screen
+        screen = Screen.PLAYER
+    }
+    fun closePlayer() {
+        screen = playerOrigin
+    }
+
+    // System Back inside the player returns to the previous screen; Library
+    // already handles its own Back to Home.
+    BackHandler(enabled = screen == Screen.PLAYER) { closePlayer() }
+
     when (screen) {
         Screen.HOME -> HomeScreen(
             state = homeState,
@@ -128,6 +146,7 @@ private fun NaudioRoute(container: AppContainer) {
             },
             onSelectProvider = homeViewModel::onSelectProvider,
             onOpenLibrary = { screen = Screen.LIBRARY },
+            onOpenPlayer = ::openPlayer,
         )
 
         Screen.LIBRARY -> LibraryScreen(
@@ -146,9 +165,25 @@ private fun NaudioRoute(container: AppContainer) {
             onSkipToPrevious = playbackViewModel::skipToPrevious,
             onToggleFavorite = playbackViewModel::onToggleFavorite,
             onSeek = playbackViewModel::onSeek,
+            onOpenPlayer = ::openPlayer,
             onPlaybackErrorShown = playbackViewModel::onErrorShown,
             // Long-press a favorite to remove it (provider-aware identity).
             onRemoveFavorite = libraryViewModel::onRemoveFavorite,
+        )
+
+        Screen.PLAYER -> PlayerScreen(
+            playerState = playerState,
+            playbackUiState = playbackUiState,
+            playbackError = playbackError,
+            onBack = ::closePlayer,
+            onTogglePlayPause = playbackViewModel::onTogglePlayPause,
+            onSkipToNext = playbackViewModel::skipToNext,
+            onSkipToPrevious = playbackViewModel::skipToPrevious,
+            onSeek = playbackViewModel::onSeek,
+            onToggleFavorite = playbackViewModel::onToggleFavorite,
+            onJumpToQueueIndex = playbackViewModel::jumpToQueueIndex,
+            onRemoveQueueItem = playbackViewModel::removeQueueItem,
+            onPlaybackErrorShown = playbackViewModel::onErrorShown,
         )
     }
 }

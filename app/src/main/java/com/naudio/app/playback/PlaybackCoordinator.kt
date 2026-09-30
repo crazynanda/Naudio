@@ -48,6 +48,11 @@ data class PlaybackQueueState(
  * restored current item. Auto-advance is inert until media has actually been
  * loaded this session, so a restored queue can never self-start.
  *
+ * M11 adds direct queue manipulation for the visual queue: [jumpToQueueIndex]
+ * and [removeQueueItem], both persisted through the same serialized
+ * [QueueRepository.replaceQueue] path so rapid mutations cannot leave Room
+ * with a stale queue/index combination.
+ *
  * All work runs on the injected [scope] (the owning ViewModel's scope); Media3
  * is only ever touched through [PlaybackController].
  */
@@ -149,6 +154,76 @@ class PlaybackCoordinator(
         resolveJob?.cancel()
         commitIndex(index - 1)
         startLoadAtCurrentIndex()
+    }
+
+    /**
+     * Jump directly to the queue item at [index] (M11 queue UI). An invalid
+     * index or an empty queue is a safe no-op. Jumping to the current index
+     * does not reload the track — it only resumes (or, for a restored queue
+     * whose item was never loaded, first loads) the current item. A valid
+     * different index updates the position, persists it, and resolves/loads
+     * the target through the existing just-in-time mechanism; the rest of the
+     * queue is never resolved.
+     */
+    fun jumpToQueueIndex(index: Int) {
+        val queue = _state.value.queue
+        if (index !in queue.indices) return
+        if (index == _state.value.currentIndex) {
+            // Same item: no resolution/load — just ensure it is playing.
+            resumeOrPlay()
+            return
+        }
+        restoreJob?.cancel()
+        resolveJob?.cancel()
+        commitIndex(index)
+        startLoadAtCurrentIndex()
+    }
+
+    /**
+     * Remove the queue item at [index] (M11 queue UI). An invalid index or an
+     * empty queue is a safe no-op.
+     *
+     * Removing an item that is not the current one only renumbers the queue
+     * (before current: index decrements; after current: unchanged) — the
+     * currently playing track is never reloaded or restarted. Removing the
+     * current item promotes the next appropriate item (the item after it, or
+     * the previous item when the last one is removed) and loads it exactly
+     * once through the just-in-time mechanism. Removing the only item stops
+     * playback gracefully and clears the persisted position.
+     */
+    fun removeQueueItem(index: Int) {
+        val current = _state.value
+        val queue = current.queue
+        if (index !in queue.indices) return
+        restoreJob?.cancel()
+        resolveJob?.cancel()
+        val removesCurrent = index == current.currentIndex
+        val newQueue = queue.toMutableList().apply { removeAt(index) }
+        val newIndex: Int? = when {
+            !removesCurrent -> current.currentIndex?.let { if (index < it) it - 1 else it }
+            newQueue.isEmpty() -> null
+            // Next appropriate item: the one that followed the removed item,
+            // or the previous item when the removed one was last.
+            else -> minOf(index, newQueue.size - 1)
+        }
+        _state.update { it.copy(queue = newQueue, currentIndex = newIndex) }
+        scope.launch {
+            persistMutex.withLock { queueRepository.replaceQueue(newQueue, newIndex) }
+        }
+        when {
+            !removesCurrent -> Unit // Playback untouched.
+            newIndex == null -> stopPlayback() // Only item removed: stop gracefully.
+            else -> startLoadAtCurrentIndex() // Genuine current replacement.
+        }
+    }
+
+    /**
+     * Stop playback after the queue was emptied. The controller returns to
+     * idle; nothing is resolved or loaded (and nothing can auto-advance).
+     */
+    private fun stopPlayback() {
+        hasLoadedMedia = false
+        playbackController.stop()
     }
 
     /** Play/pause intent: resumes the restored item on the very first play. */

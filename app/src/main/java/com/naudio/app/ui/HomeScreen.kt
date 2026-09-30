@@ -62,6 +62,7 @@ fun HomeScreen(
     onSkipToPrevious: () -> Unit,
     onToggleFavorite: () -> Unit,
     onSeek: (Long) -> Unit,
+    onOpenPlayer: () -> Unit,
     onPlaybackErrorShown: () -> Unit,
     audioPermissionGranted: Boolean,
     onRequestAudioPermission: () -> Unit,
@@ -102,6 +103,7 @@ fun HomeScreen(
                 onTogglePlayPause = onTogglePlayPause,
                 onSkipToNext = onSkipToNext,
                 onSeek = onSeek,
+                onOpenPlayer = onOpenPlayer,
             )
         },
     ) { innerPadding ->
@@ -299,6 +301,7 @@ private fun HomeScreenPreview() {
             onSkipToPrevious = {},
             onToggleFavorite = {},
             onSeek = {},
+            onOpenPlayer = {},
             onPlaybackErrorShown = {},
             audioPermissionGranted = true,
             onRequestAudioPermission = {},

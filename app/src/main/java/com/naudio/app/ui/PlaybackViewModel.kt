@@ -118,6 +118,24 @@ class PlaybackViewModel(
         coordinator.skipToPrevious()
     }
 
+    /**
+     * Intent (M11 queue UI): jump directly to the queue item at [index].
+     * Invalid indexes and jumps to the current item are safe no-ops that
+     * never reload the track.
+     */
+    fun jumpToQueueIndex(index: Int) {
+        coordinator.jumpToQueueIndex(index)
+    }
+
+    /**
+     * Intent (M11 queue UI): remove the queue item at [index] persistently.
+     * Removal never restarts the current track unless the current item itself
+     * was removed; invalid indexes are safe no-ops.
+     */
+    fun removeQueueItem(index: Int) {
+        coordinator.removeQueueItem(index)
+    }
+
     /** Intent: toggle the favorite state of the current track. */
     fun onToggleFavorite() {
         val track = coordinator.state.value.currentTrack ?: return
