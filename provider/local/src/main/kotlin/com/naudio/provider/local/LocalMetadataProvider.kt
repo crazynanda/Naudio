@@ -19,6 +19,11 @@ import kotlinx.coroutines.withContext
  * provider rethrows untouched so the UI can show a permission-required state.
  *
  * The provider never requests permissions and never talks to a player.
+ *
+ * M12: album artwork is resolved from the row's ALBUM_ID into the standard
+ * MediaStore album-art content URI (`content://media/external/audio/albumart
+ * /{albumId}`) and stored as the track's artworkUrl. Rows without a usable
+ * ALBUM_ID simply carry null artwork — never a crash.
  */
 class LocalMetadataProvider(
     context: Context,
@@ -36,6 +41,7 @@ class LocalMetadataProvider(
         MediaStore.Audio.Media.ARTIST,
         MediaStore.Audio.Media.ALBUM,
         MediaStore.Audio.Media.DURATION,
+        MediaStore.Audio.Media.ALBUM_ID,
     )
 
     override suspend fun searchTracks(
@@ -88,12 +94,16 @@ class LocalMetadataProvider(
             var skipped = 0
             while (skipped < from && cursor.moveToNext()) skipped++
             while (items.size < limit && cursor.moveToNext()) {
+                // Only a positive album id yields an album-art URI; missing or
+                // invalid values leave the artwork null (graceful fallback).
+                val albumId = cursor.getLong(5).takeIf { it > 0L }
                 items += MediaStoreTrackRow(
                     id = cursor.getLong(0),
                     title = cursor.getString(1),
                     artist = cursor.getString(2),
                     album = cursor.getString(3),
                     durationMs = cursor.getLong(4),
+                    artworkUrl = albumId?.let { albumArtUri(it) },
                 ).toTrack()
             }
         }

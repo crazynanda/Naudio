@@ -148,6 +148,63 @@ class QueueRepositoryTest {
         repository.setCurrentIndex(2)
         assertEquals(2, repository.currentIndex())
     }
+
+    // ------------------------------------------------------------------
+    // M12: album / artwork metadata survives the queue snapshot
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `replaceQueue snapshots album and artwork into queue rows and mirrors tracks`() = runTest {
+        val t = track("a").copy(album = "Discovery", artworkUrl = "https://x/600x600bb.jpg")
+
+        repository.replaceQueue(listOf(t), currentIndex = 0)
+
+        assertEquals("Discovery", queueDao.items.value[0].album)
+        assertEquals("https://x/600x600bb.jpg", queueDao.items.value[0].artworkUrl)
+        val row = trackDao.rows["local" to "a"]!!
+        assertEquals("Discovery", row.album)
+        assertEquals("https://x/600x600bb.jpg", row.artworkUrl)
+    }
+
+    @Test
+    fun `replaceQueue refresh carries album and artwork to an existing favorite row`() = runTest {
+        trackDao.upsertTrack(
+            TrackEntity(
+                id = "a",
+                providerId = "local",
+                title = "Old title",
+                artist = "Old artist",
+                durationMs = 1L,
+                isFavorite = true,
+                savedAt = 9L,
+            ),
+        )
+
+        repository.replaceQueue(
+            listOf(track("a").copy(album = "New album", artworkUrl = "content://media/external/audio/albumart/3")),
+            currentIndex = 0,
+        )
+
+        val row = trackDao.rows["local" to "a"]!!
+        assertEquals("New album", row.album)
+        assertEquals("content://media/external/audio/albumart/3", row.artworkUrl)
+        // Favorite state still untouched by the metadata refresh.
+        assertTrue(row.isFavorite)
+        assertEquals(9L, row.savedAt)
+    }
+
+    @Test
+    fun `observeQueue restores album and artwork from the persisted snapshot`() = runTest {
+        repository.replaceQueue(
+            listOf(track("a", providerId = "itunes").copy(album = "Al", artworkUrl = "https://x/y.jpg")),
+            currentIndex = 0,
+        )
+
+        val snapshot = repository.observeQueue().first()
+
+        assertEquals("Al", snapshot.tracks[0].album)
+        assertEquals("https://x/y.jpg", snapshot.tracks[0].artworkUrl)
+    }
 }
 
 /** In-memory QueueDao with REPLACE-on-order_index semantics. */

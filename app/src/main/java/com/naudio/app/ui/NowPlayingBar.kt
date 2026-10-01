@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.naudio.core.model.Track
 
 /**
@@ -51,6 +52,19 @@ fun NowPlayingBar(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // M12: compact artwork thumbnail; placeholder when unavailable.
+        // Sits inside the clickable bar — tapping it opens the player like
+        // the rest of the bar surface.
+        ArtworkImage(
+            artworkUrl = track.artworkUrl,
+            trackTitle = track.title,
+            contentDescription = "Artwork for " + track.title,
+            cornerRadius = 8.dp,
+            glyphSize = 20.sp,
+            modifier = Modifier
+                .padding(end = 12.dp)
+                .size(48.dp),
+        )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = track.title,

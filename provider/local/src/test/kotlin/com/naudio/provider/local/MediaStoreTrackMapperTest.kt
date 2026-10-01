@@ -60,4 +60,36 @@ class MediaStoreTrackMapperTest {
     fun `content uri follows MediaStore audio media pattern`() {
         assertEquals("content://media/external/audio/media/42", trackContentUri(42L))
     }
+
+    // ------------------------------------------------------------------
+    // M12: album-art URI
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `row artwork url maps onto the track`() {
+        val track = MediaStoreTrackRow(
+            id = 7L,
+            title = "t",
+            artist = "a",
+            album = "al",
+            durationMs = 1L,
+            artworkUrl = "content://media/external/audio/albumart/17",
+        ).toTrack()
+
+        assertEquals("content://media/external/audio/albumart/17", track.artworkUrl)
+    }
+
+    @Test
+    fun `missing album artwork maps to null artworkUrl`() {
+        val track = MediaStoreTrackRow(
+            id = 7L,
+            title = "t",
+            artist = "a",
+            album = null,
+            durationMs = 1L,
+            artworkUrl = null,
+        ).toTrack()
+
+        assertNull(track.artworkUrl)
+    }
 }

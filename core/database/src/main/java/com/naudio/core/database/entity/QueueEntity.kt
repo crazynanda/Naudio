@@ -11,6 +11,9 @@ import androidx.room.Entity
  * provider-aware — (provider_id, track_id) mirrors [TrackEntity]'s composite
  * identity, so queue rows never collide across providers. The full metadata
  * snapshot lets the queue be restored at startup without joining `tracks`.
+ *
+ * M12: the snapshot also carries `album` and `artwork_url` so restored queue
+ * items keep their artwork metadata without a `tracks` join.
  */
 @Entity(
     tableName = "queue_items",
@@ -35,4 +38,10 @@ data class QueueEntity(
 
     @ColumnInfo(name = "duration_ms")
     val durationMs: Long,
+
+    @ColumnInfo(name = "album")
+    val album: String? = null,
+
+    @ColumnInfo(name = "artwork_url")
+    val artworkUrl: String? = null,
 )

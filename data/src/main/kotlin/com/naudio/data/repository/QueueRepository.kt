@@ -2,7 +2,6 @@ package com.naudio.data.repository
 
 import com.naudio.core.database.dao.QueueDao
 import com.naudio.core.database.dao.TrackDao
-import com.naudio.core.database.entity.QueueEntity
 import com.naudio.core.database.entity.QueueStateEntity
 import com.naudio.core.model.Track
 import com.naudio.data.mapper.QueueMapper
@@ -43,16 +42,7 @@ class QueueRepository(
     suspend fun replaceQueue(tracks: List<Track>, currentIndex: Int?) {
         queueDao.clearQueue()
         queueDao.insertAll(
-            tracks.mapIndexed { index, track ->
-                QueueEntity(
-                    orderIndex = index,
-                    providerId = track.providerId,
-                    trackId = track.id,
-                    title = track.title,
-                    artist = track.artist,
-                    durationMs = track.durationMs,
-                )
-            },
+            tracks.mapIndexed { index, track -> QueueMapper.toEntity(index, track) },
         )
         persistQueueTracks(tracks)
         val validIndex = currentIndex?.takeIf { tracks.isNotEmpty() && it in tracks.indices }
@@ -82,6 +72,8 @@ class QueueRepository(
                         title = track.title,
                         artist = track.artist,
                         durationMs = track.durationMs,
+                        album = track.album,
+                        artworkUrl = track.artworkUrl,
                     )
                 } else {
                     TrackMapper.toEntity(track)

@@ -30,9 +30,10 @@ class LocalMetadataProviderTest {
     private class FakeMediaStoreProvider : ContentProvider() {
         var permissionDenied = false
         val rows = mutableListOf(
-            arrayOf<Any?>(1L, "Song One", "Artist One", "Album One", 100_000L),
-            arrayOf<Any?>(2L, "Song Two", "Artist Two", "Album Two", 200_000L),
-            arrayOf<Any?>(3L, "Other Song", "Artist Three", "Album Three", 300_000L),
+            // Last entry is ALBUM_ID: valid, missing (0), and negative variants.
+            arrayOf<Any?>(1L, "Song One", "Artist One", "Album One", 100_000L, 17L),
+            arrayOf<Any?>(2L, "Song Two", "Artist Two", "Album Two", 200_000L, 0L),
+            arrayOf<Any?>(3L, "Other Song", "Artist Three", "Album Three", 300_000L, -5L),
         )
 
         override fun onCreate(): Boolean = true
@@ -71,7 +72,7 @@ class LocalMetadataProviderTest {
         override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = 0
 
         companion object {
-            val PROJECTION = arrayOf("_id", "title", "artist", "album", "duration")
+            val PROJECTION = arrayOf("_id", "title", "artist", "album", "duration", "album_id")
             const val AUTHORITY = "media"
         }
     }
@@ -96,6 +97,30 @@ class LocalMetadataProviderTest {
         assertEquals("Artist One", page.items[0].artist)
         assertEquals("Album One", page.items[0].album)
         assertEquals(100_000L, page.items[0].durationMs)
+    }
+
+    // ------------------------------------------------------------------
+    // M12: album artwork resolved from ALBUM_ID
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `valid album id resolves the standard albumart content uri`() = runTest {
+        val provider = newProvider()
+
+        val track = provider.lookupTrack("1")
+
+        assertEquals("content://media/external/audio/albumart/17", track?.artworkUrl)
+    }
+
+    @Test
+    fun `missing or invalid album id leaves artwork null without crashing`() = runTest {
+        val provider = newProvider()
+
+        val missing = provider.lookupTrack("2")
+        val negative = provider.lookupTrack("3")
+
+        assertNull(missing?.artworkUrl)
+        assertNull(negative?.artworkUrl)
     }
 
     @Test

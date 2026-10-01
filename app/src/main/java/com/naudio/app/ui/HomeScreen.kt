@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -35,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.naudio.app.playback.PlaybackError
 import com.naudio.app.ui.theme.NaudioTheme
@@ -240,18 +242,32 @@ private fun ResultsList(
         // (e.g. YouTube Music lists a song and a video with one videoId), so
         // keying by id crashes LazyColumn on duplicate keys.
         items(tracks) { track ->
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onTrackSelected(track) }
                     .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = track.title, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = track.artist,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // M12: small artwork thumbnail; placeholder when unavailable.
+                ArtworkImage(
+                    artworkUrl = track.artworkUrl,
+                    trackTitle = track.title,
+                    contentDescription = null,
+                    cornerRadius = 6.dp,
+                    glyphSize = 14.sp,
+                    modifier = Modifier
+                        .padding(end = 12.dp)
+                        .size(44.dp),
                 )
+                Column {
+                    Text(text = track.title, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = track.artist,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

@@ -13,14 +13,14 @@ import com.naudio.core.database.entity.QueueStateEntity
 import com.naudio.core.database.entity.TrackEntity
 
 /**
- * Version 2 database (M10): adds the persistent playback queue
- * ([QueueEntity], [QueueStateEntity]) alongside the M3 favorites tables.
- * The v1→v2 migration creates the new tables without touching `tracks`,
- * so existing favorites survive the upgrade.
+ * Version 3 database (M12): adds the `album` and `artwork_url` metadata
+ * columns to `tracks` and `queue_items`. The v2→v3 migration is pure
+ * `ALTER TABLE ... ADD COLUMN`, so every existing row (favorites, savedAt,
+ * queue items, queue position) survives untouched with the new columns null.
  */
 @Database(
     entities = [TrackEntity::class, QueueEntity::class, QueueStateEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class NaudioDatabase : RoomDatabase() {
@@ -64,9 +64,25 @@ abstract class NaudioDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * M12: adds the nullable `album` and `artwork_url` TEXT columns to
+         * both `tracks` and `queue_items`. Existing rows keep every value;
+         * the new columns start as null. Public so
+         * [androidx.room.testing.MigrationTestHelper]-based tests can run the
+         * same migration the builder registers.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `tracks` ADD COLUMN `album` TEXT")
+                db.execSQL("ALTER TABLE `tracks` ADD COLUMN `artwork_url` TEXT")
+                db.execSQL("ALTER TABLE `queue_items` ADD COLUMN `album` TEXT")
+                db.execSQL("ALTER TABLE `queue_items` ADD COLUMN `artwork_url` TEXT")
+            }
+        }
+
         fun open(context: Context): NaudioDatabase {
             return Room.databaseBuilder(context, NaudioDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
         }
     }

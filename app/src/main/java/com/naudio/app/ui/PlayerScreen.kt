@@ -1,8 +1,5 @@
 package com.naudio.app.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,7 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -30,24 +24,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.naudio.app.playback.PlaybackError
 import com.naudio.core.player.PlayerState
-import com.naudio.core.player.PlaybackStatus
-import kotlin.math.absoluteValue
 
 /**
- * Full-screen player (M11): artwork/placeholder, metadata, position/duration,
- * seek + transport controls, and the visual playback queue. Consumes only
- * ViewModel state and emits intents — no repositories, no Media3, no player
- * internals. The queue section shares the screen via vertical scroll; no
- * second player-state mechanism exists.
+ * Full-screen player (M11/M12): real artwork with placeholder fallback,
+ * metadata, position/duration, seek + transport controls, and the visual
+ * playback queue. Consumes only ViewModel state and emits intents — no
+ * repositories, no Media3, no player internals, no network clients (Coil
+ * handles image loading inside [ArtworkImage]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,8 +83,10 @@ fun PlayerScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            ArtworkPlaceholder(
+            ArtworkImage(
+                artworkUrl = playerState.track?.artworkUrl,
                 trackTitle = playerState.track?.title,
+                contentDescription = "Artwork for " + (playerState.track?.title ?: "nothing playing"),
                 isBuffering = playerState.isBuffering,
                 modifier = Modifier
                     .padding(horizontal = 24.dp, vertical = 16.dp)
@@ -139,54 +128,6 @@ fun PlayerScreen(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
-        }
-    }
-}
-
-/**
- * Stable artwork placeholder: a deterministic gradient keyed on the title so
- * it does not flicker between recompositions. Graceful when no track is
- * loaded. No artwork downloading or caching architecture by design.
- */
-/** Deterministic gradient pairs keyed by title hash — stable, no downloads. */
-private val ArtworkPalettes = listOf(
-    Color(0xFF5E35B1) to Color(0xFF9575CD),
-    Color(0xFF1E88E5) to Color(0xFF64B5F6),
-    Color(0xFF00897B) to Color(0xFF4DB6AC),
-    Color(0xFFF4511E) to Color(0xFFFF8A65),
-    Color(0xFF6D4C41) to Color(0xFFA1887F),
-    Color(0xFF3949AB) to Color(0xFF7986CB),
-)
-
-@Composable
-private fun ArtworkPlaceholder(
-    trackTitle: String?,
-    isBuffering: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val seed = trackTitle?.hashCode()?.absoluteValue ?: 0
-    val (base, accent) = ArtworkPalettes[seed % ArtworkPalettes.size]
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    brush = Brush.linearGradient(listOf(base, accent)),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (isBuffering) {
-                androidx.compose.material3.CircularProgressIndicator()
-            } else {
-                Text(
-                    text = "♪",
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 64.sp,
-                )
-            }
         }
     }
 }

@@ -14,6 +14,8 @@ object TrackMapper {
             providerId = entity.providerId,
             title = entity.title,
             artist = entity.artist,
+            album = entity.album,
+            artworkUrl = entity.artworkUrl,
             durationMs = entity.durationMs,
         )
 
@@ -23,6 +25,8 @@ object TrackMapper {
             providerId = track.providerId,
             title = track.title,
             artist = track.artist,
+            album = track.album,
+            artworkUrl = track.artworkUrl,
             durationMs = track.durationMs,
         )
 }

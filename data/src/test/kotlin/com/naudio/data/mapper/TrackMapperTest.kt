@@ -3,6 +3,7 @@ package com.naudio.data.mapper
 import com.naudio.core.database.entity.TrackEntity
 import com.naudio.core.model.Track
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TrackMapperTest {
@@ -75,5 +76,72 @@ class TrackMapperTest {
         assertEquals(original.title, roundTripped.title)
         assertEquals(original.artist, roundTripped.artist)
         assertEquals(original.durationMs, roundTripped.durationMs)
+    }
+
+    // ------------------------------------------------------------------
+    // M12: album / artworkUrl persistence
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `toDomain maps album and artworkUrl`() {
+        val entity = TrackEntity(
+            id = "t1",
+            providerId = "itunes",
+            title = "Title",
+            artist = "Artist",
+            durationMs = 1_000L,
+            album = "Discovery",
+            artworkUrl = "https://example.com/600x600bb.jpg",
+        )
+
+        val domain = TrackMapper.toDomain(entity)
+
+        assertEquals("Discovery", domain.album)
+        assertEquals("https://example.com/600x600bb.jpg", domain.artworkUrl)
+    }
+
+    @Test
+    fun `toEntity maps album and artworkUrl`() {
+        val track = Track(
+            id = "t1",
+            providerId = "itunes",
+            title = "Title",
+            artist = "Artist",
+            album = "Discovery",
+            artworkUrl = "https://example.com/600x600bb.jpg",
+            durationMs = 1_000L,
+        )
+
+        val entity = TrackMapper.toEntity(track)
+
+        assertEquals("Discovery", entity.album)
+        assertEquals("https://example.com/600x600bb.jpg", entity.artworkUrl)
+    }
+
+    @Test
+    fun `null album and artwork survive the round-trip as null`() {
+        val track = Track(id = "t1", providerId = "local", title = "T", artist = "A")
+
+        val roundTripped = TrackMapper.toDomain(TrackMapper.toEntity(track))
+
+        assertNull(roundTripped.album)
+        assertNull(roundTripped.artworkUrl)
+    }
+
+    @Test
+    fun `album and artwork survive the round-trip unchanged`() {
+        val original = Track(
+            id = "t1",
+            providerId = "ytmusic",
+            title = "T",
+            artist = "A",
+            album = "Album",
+            artworkUrl = "content://media/external/audio/albumart/17",
+            durationMs = 9_000L,
+        )
+
+        val roundTripped = TrackMapper.toDomain(TrackMapper.toEntity(original))
+
+        assertEquals(original, roundTripped)
     }
 }

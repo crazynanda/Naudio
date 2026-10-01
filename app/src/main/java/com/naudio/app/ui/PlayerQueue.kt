@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.naudio.core.model.Track
 
 /**
@@ -98,6 +99,17 @@ private fun QueueItem(
                 modifier = Modifier.size(20.dp),
             )
         }
+        // M12: small artwork thumbnail; deterministic placeholder fallback.
+        ArtworkImage(
+            artworkUrl = track.artworkUrl,
+            trackTitle = track.title,
+            contentDescription = null,
+            cornerRadius = 6.dp,
+            glyphSize = 14.sp,
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .size(44.dp),
+        )
         Column(
             modifier = Modifier
                 .weight(1f)

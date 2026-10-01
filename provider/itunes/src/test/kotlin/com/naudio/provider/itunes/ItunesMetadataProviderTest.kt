@@ -206,6 +206,47 @@ class ItunesMetadataProviderTest {
     }
 
     // ------------------------------------------------------------------
+    // 9b. M12: artwork URL upscale (safe fallback in every edge case)
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `standard 100x100bb artwork is upgraded to 600x600bb`() {
+        val dto = ItunesTrackDto(
+            trackId = 1L,
+            trackName = "Song",
+            artistName = "Artist",
+            artworkUrl100 = "https://is1-ssl.mzstatic.com/image/thumb/Music/1.jpg/100x100bb.jpg",
+        )
+        assertEquals(
+            "https://is1-ssl.mzstatic.com/image/thumb/Music/1.jpg/600x600bb.jpg",
+            dto.toDomain().artworkUrl,
+        )
+    }
+
+    @Test
+    fun `null artwork stays null through the mapper`() {
+        val dto = ItunesTrackDto(trackId = 1L, trackName = "Song", artistName = "Artist", artworkUrl100 = null)
+        assertNull(dto.toDomain().artworkUrl)
+    }
+
+    @Test
+    fun `unexpected artwork url format is preserved verbatim`() {
+        val dto = ItunesTrackDto(
+            trackId = 1L,
+            trackName = "Song",
+            artistName = "Artist",
+            artworkUrl100 = "https://example.com/some/odd/art.png",
+        )
+        assertEquals("https://example.com/some/odd/art.png", dto.toDomain().artworkUrl)
+    }
+
+    @Test
+    fun `non-100 sizes in the bb pattern are left untouched`() {
+        // Only the known 100x100bb token is rewritten; other sizes pass through.
+        assertEquals("https://x/200x200bb.jpg", "https://x/200x200bb.jpg".upgradedArtworkUrl())
+    }
+
+    // ------------------------------------------------------------------
     // 10. cancellation is not swallowed by the retry wrapper
     // ------------------------------------------------------------------
     @Test
