@@ -6,21 +6,32 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.naudio.core.database.dao.PlaylistDao
 import com.naudio.core.database.dao.QueueDao
 import com.naudio.core.database.dao.TrackDao
+import com.naudio.core.database.entity.PlaylistEntity
+import com.naudio.core.database.entity.PlaylistTrackCrossRef
 import com.naudio.core.database.entity.QueueEntity
 import com.naudio.core.database.entity.QueueStateEntity
 import com.naudio.core.database.entity.TrackEntity
 
 /**
- * Version 3 database (M12): adds the `album` and `artwork_url` metadata
- * columns to `tracks` and `queue_items`. The v2→v3 migration is pure
- * `ALTER TABLE ... ADD COLUMN`, so every existing row (favorites, savedAt,
- * queue items, queue position) survives untouched with the new columns null.
+ * Version 4 database (M13): adds the user-playlist tables — `playlists` and
+ * the ordered `playlist_tracks` membership table (composite
+ * (provider_id, track_id) identity + unique per-playlist index) — while
+ * leaving every existing table untouched. The v3→v4 migration is pure
+ * `CREATE TABLE`, so favorites, artwork metadata, queue rows and the queue
+ * position all survive untouched.
  */
 @Database(
-    entities = [TrackEntity::class, QueueEntity::class, QueueStateEntity::class],
-    version = 3,
+    entities = [
+        TrackEntity::class,
+        QueueEntity::class,
+        QueueStateEntity::class,
+        PlaylistEntity::class,
+        PlaylistTrackCrossRef::class,
+    ],
+    version = 4,
     exportSchema = true,
 )
 abstract class NaudioDatabase : RoomDatabase() {
@@ -28,6 +39,8 @@ abstract class NaudioDatabase : RoomDatabase() {
     abstract fun trackDao(): TrackDao
 
     abstract fun queueDao(): QueueDao
+
+    abstract fun playlistDao(): PlaylistDao
 
     companion object {
         private const val NAME = "naudio.db"
@@ -80,9 +93,64 @@ abstract class NaudioDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * M13: creates the user-playlist tables. `playlists` holds id/name/
+         * createdAt; `playlist_tracks` holds ordered membership keyed by the
+         * full composite track identity (provider_id, track_id) with a unique
+         * per-playlist index (no duplicate occurrences) and composite foreign
+         * keys into `playlists` and `tracks`. Track rows are never deleted
+         * through these tables. The SQL mirrors exactly what Room generates
+         * for the v4 entities so the migrated schema validates. Public so
+         * [androidx.room.testing.MigrationTestHelper]-based tests can run the
+         * same migration the builder registers.
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `playlists` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `created_at` INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `playlist_tracks` (
+                        `playlist_id` INTEGER NOT NULL,
+                        `provider_id` TEXT NOT NULL,
+                        `track_id` TEXT NOT NULL,
+                        `position` INTEGER NOT NULL,
+                        PRIMARY KEY(`playlist_id`, `provider_id`, `track_id`),
+                        FOREIGN KEY(`playlist_id`)
+                            REFERENCES `playlists`(`id`)
+                            ON UPDATE NO ACTION ON DELETE NO ACTION,
+                        FOREIGN KEY(`provider_id`, `track_id`)
+                            REFERENCES `tracks`(`provider_id`, `id`)
+                            ON UPDATE NO ACTION ON DELETE NO ACTION
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_playlist_tracks_playlist_id` " +
+                        "ON `playlist_tracks` (`playlist_id`)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_playlist_tracks_provider_id_track_id` " +
+                        "ON `playlist_tracks` (`provider_id`, `track_id`)",
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS " +
+                        "`index_playlist_tracks_playlist_id_provider_id_track_id` " +
+                        "ON `playlist_tracks` (`playlist_id`, `provider_id`, `track_id`)",
+                )
+            }
+        }
+
         fun open(context: Context): NaudioDatabase {
             return Room.databaseBuilder(context, NaudioDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
         }
     }

@@ -8,7 +8,9 @@ import com.naudio.core.player.PlaybackController
 import com.naudio.data.provider.ProviderRegistry
 import com.naudio.data.repository.FavoritesRepository
 import com.naudio.data.repository.LibraryRepository
+import com.naudio.data.repository.PlaylistRepository
 import com.naudio.data.repository.QueueRepository
+import com.naudio.data.repository.TransactionRunner
 import com.naudio.provider.api.ProviderId
 import com.naudio.provider.default.DefaultMetadataProvider
 import com.naudio.provider.default.DefaultPlaybackProvider
@@ -77,6 +79,17 @@ class AppContainer(context: Context) {
     // Persistent playback queue storage (M10): shares the app-lifetime DB.
     val queueRepository: QueueRepository by lazy {
         QueueRepository(database.queueDao(), database.trackDao())
+    }
+
+    // User playlists (M13): shares the app-lifetime DB. Track persistence and
+    // playlist membership writes run atomically through the shared
+    // TransactionRunner.
+    val playlistRepository: PlaylistRepository by lazy {
+        PlaylistRepository(
+            playlistDao = database.playlistDao(),
+            trackDao = database.trackDao(),
+            transactions = TransactionRunner.forDatabase(database),
+        )
     }
 
     // App-lifetime playback controller; the service owns the real player.

@@ -2,7 +2,9 @@ package com.naudio.app.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -70,6 +72,7 @@ fun HomeScreen(
     onRequestAudioPermission: () -> Unit,
     onSelectProvider: (String) -> Unit,
     onOpenLibrary: () -> Unit,
+    onAddToPlaylist: (Track) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -142,7 +145,11 @@ fun HomeScreen(
                     is LibraryQueryState.Idle -> IdleHint()
                     is LibraryQueryState.Loading -> LoadingIndicator()
                     is LibraryQueryState.Results ->
-                        ResultsList(tracks = search.tracks, onTrackSelected = onTrackSelected)
+                        ResultsList(
+                            tracks = search.tracks,
+                            onTrackSelected = onTrackSelected,
+                            onAddToPlaylist = onAddToPlaylist,
+                        )
                     is LibraryQueryState.Error -> ErrorPane(message = search.message, onRetry = onRetry)
                 }
             }
@@ -220,10 +227,12 @@ private fun LoadingIndicator() {
     CircularProgressIndicator(modifier = Modifier.padding(16.dp))
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ResultsList(
     tracks: List<Track>,
     onTrackSelected: (Track) -> Unit,
+    onAddToPlaylist: (Track) -> Unit,
 ) {
     if (tracks.isEmpty()) {
         Text(
@@ -245,7 +254,12 @@ private fun ResultsList(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onTrackSelected(track) }
+                    .combinedClickable(
+                        onClick = { onTrackSelected(track) },
+                        // M13: long-press offers "Add to playlist" for any
+                        // provider's search result.
+                        onLongClick = { onAddToPlaylist(track) },
+                    )
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -323,6 +337,7 @@ private fun HomeScreenPreview() {
             onRequestAudioPermission = {},
             onSelectProvider = {},
             onOpenLibrary = {},
+            onAddToPlaylist = {},
         )
     }
 }

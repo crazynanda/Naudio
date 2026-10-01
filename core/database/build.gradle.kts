@@ -37,7 +37,11 @@ dependencies {
     // Room runtime is exposed via api so that modules depending on
     // :core:database (e.g. :app) can access RoomDatabase/NaudioDatabase types.
     api("androidx.room:room-runtime:2.8.4")
-    implementation("androidx.room:room-ktx:2.8.4")
+    // M13: room-ktx (the suspend transaction extension) is exposed via api so
+    // :data's TransactionRunner — which runs repository-level transactions on
+    // the database — can compile against the same extension. No version bump;
+    // same artifact the app already ships.
+    api("androidx.room:room-ktx:2.8.4")
     ksp("androidx.room:room-compiler:2.8.4")
 
     // Android instrumented test dependencies (for Room in-memory tests).
