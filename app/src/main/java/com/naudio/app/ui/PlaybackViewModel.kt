@@ -53,11 +53,18 @@ class PlaybackViewModel(
     libraryRepository: LibraryRepository,
     private val favoritesRepository: FavoritesRepository,
     queueRepository: QueueRepository,
+    sharedCoordinator: PlaybackCoordinator? = null,
 ) : ViewModel() {
 
     val playbackState: StateFlow<PlayerState> = playbackController.state
 
-    private val coordinator = PlaybackCoordinator(
+    /**
+     * M14: the coordinator is app-lifetime and shared with the Android Auto
+     * gateway when injected (production) — one queue owner for every surface.
+     * When absent (tests, and any caller that has not migrated), the ViewModel
+     * keeps its previous behavior and owns an activity-scoped coordinator.
+     */
+    private val coordinator: PlaybackCoordinator = sharedCoordinator ?: PlaybackCoordinator(
         playbackController = playbackController,
         libraryRepository = libraryRepository,
         queueRepository = queueRepository,

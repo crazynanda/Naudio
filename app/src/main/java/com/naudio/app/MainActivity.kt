@@ -90,6 +90,7 @@ private fun NaudioRoute(container: AppContainer) {
             libraryRepository = container.libraryRepository,
             favoritesRepository = container.favoritesRepository,
             queueRepository = container.queueRepository,
+            sharedCoordinator = container.playbackCoordinator,
         )
     }
 

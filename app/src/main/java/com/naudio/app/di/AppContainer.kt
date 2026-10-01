@@ -1,8 +1,13 @@
 package com.naudio.app.di
 
 import android.content.Context
+import com.naudio.app.auto.AutoBrowseTree
+import com.naudio.app.auto.AutoPlaybackGateway
+import com.naudio.app.playback.PlaybackCoordinator
 import com.naudio.core.database.NaudioDatabase
 import com.naudio.core.network.NaudioHttpClient
+import com.naudio.core.player.AutoBrowseTreeProvider
+import com.naudio.core.player.AutoPlaybackBridge
 import com.naudio.core.player.MediaControllerPlaybackController
 import com.naudio.core.player.PlaybackController
 import com.naudio.data.provider.ProviderRegistry
@@ -20,6 +25,9 @@ import com.naudio.provider.local.LocalMetadataProvider
 import com.naudio.provider.local.LocalPlaybackProvider
 import com.naudio.provider.ytmusic.YtMusicMetadataProvider
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /** Manual, provider-based DI. Deliberately not Hilt at this milestone:
  * the graph is small and explicit construction documents the architecture.
@@ -95,5 +103,37 @@ class AppContainer(context: Context) {
     // App-lifetime playback controller; the service owns the real player.
     val playbackController: PlaybackController by lazy {
         MediaControllerPlaybackController(applicationContext)
+    }
+
+    // The ONE queue orchestrator (M14): app-lifetime and shared by the mobile
+    // UI (PlaybackViewModel) and Android Auto (the media session gateway), so
+    // queue movement, persistence and resolution have a single owner. The
+    // scope is app-lifetime by design — Auto-driven playback must not die
+    // with an activity-scoped ViewModel.
+    val playbackCoordinator: PlaybackCoordinator by lazy {
+        PlaybackCoordinator(
+            playbackController = playbackController,
+            libraryRepository = libraryRepository,
+            queueRepository = queueRepository,
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+        )
+    }
+
+    // Android Auto boundary (M14): read-only browse tree over the existing
+    // repositories, and a playback gateway that delegates to the shared
+    // coordinator. Both are pure adapters — they own no state.
+    val autoPlaybackBridge: AutoPlaybackBridge by lazy {
+        AutoPlaybackGateway(
+            coordinator = playbackCoordinator,
+            favoritesRepository = favoritesRepository,
+            playlistRepository = playlistRepository,
+        )
+    }
+
+    val autoBrowseTree: AutoBrowseTreeProvider by lazy {
+        AutoBrowseTree(
+            favoritesRepository = favoritesRepository,
+            playlistRepository = playlistRepository,
+        )
     }
 }
