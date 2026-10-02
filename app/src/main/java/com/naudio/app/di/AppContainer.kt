@@ -3,6 +3,7 @@ package com.naudio.app.di
 import android.content.Context
 import com.naudio.app.auto.AutoBrowseTree
 import com.naudio.app.auto.AutoPlaybackGateway
+import com.naudio.app.history.HistoryTracker
 import com.naudio.app.playback.PlaybackCoordinator
 import com.naudio.core.database.NaudioDatabase
 import com.naudio.core.network.NaudioHttpClient
@@ -12,6 +13,7 @@ import com.naudio.core.player.MediaControllerPlaybackController
 import com.naudio.core.player.PlaybackController
 import com.naudio.data.provider.ProviderRegistry
 import com.naudio.data.repository.FavoritesRepository
+import com.naudio.data.repository.HistoryRepository
 import com.naudio.data.repository.LibraryRepository
 import com.naudio.data.repository.PlaylistRepository
 import com.naudio.data.repository.QueueRepository
@@ -100,6 +102,14 @@ class AppContainer(context: Context) {
         )
     }
 
+    // M17: one application-lifetime scope. The retention trim it runs must
+    // outlive whichever ViewModel or screen triggered the insert, and the
+    // tracker must survive screen navigation — so both hang off the
+    // application, never off a Composable.
+    private val applicationScope: CoroutineScope by lazy {
+        CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    }
+
     // App-lifetime playback controller; the service owns the real player.
     val playbackController: PlaybackController by lazy {
         MediaControllerPlaybackController(applicationContext)
@@ -119,6 +129,29 @@ class AppContainer(context: Context) {
         )
     }
 
+    // Playback history (M17): an append-only event log sharing the
+    // app-lifetime DB. It is the ONLY writer of history — the UI and Android
+    // Auto both read it, neither creates a second copy.
+    val historyRepository: HistoryRepository by lazy {
+        HistoryRepository(
+            historyDao = database.historyDao(),
+            scope = applicationScope,
+        )
+    }
+
+    // One tracker for the whole application, observing the same shared
+    // PlaybackController the UI observes. Started eagerly so listening time is
+    // accounted even when the user is not on the Home screen (e.g. Auto
+    // playback or a backgrounded session).
+    val historyTracker: HistoryTracker by lazy {
+        HistoryTracker(
+            repository = historyRepository,
+            scope = applicationScope,
+        ).also { tracker ->
+            tracker.start(playbackController)
+        }
+    }
+
     // Android Auto boundary (M14): read-only browse tree over the existing
     // repositories, and a playback gateway that delegates to the shared
     // coordinator. Both are pure adapters — they own no state.
@@ -127,6 +160,7 @@ class AppContainer(context: Context) {
             coordinator = playbackCoordinator,
             favoritesRepository = favoritesRepository,
             playlistRepository = playlistRepository,
+            historyRepository = historyRepository,
         )
     }
 
@@ -134,6 +168,7 @@ class AppContainer(context: Context) {
         AutoBrowseTree(
             favoritesRepository = favoritesRepository,
             playlistRepository = playlistRepository,
+            historyRepository = historyRepository,
         )
     }
 

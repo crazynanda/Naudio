@@ -6,9 +6,11 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.naudio.core.database.dao.HistoryDao
 import com.naudio.core.database.dao.PlaylistDao
 import com.naudio.core.database.dao.QueueDao
 import com.naudio.core.database.dao.TrackDao
+import com.naudio.core.database.entity.HistoryEntity
 import com.naudio.core.database.entity.PlaylistEntity
 import com.naudio.core.database.entity.PlaylistTrackCrossRef
 import com.naudio.core.database.entity.QueueEntity
@@ -16,12 +18,11 @@ import com.naudio.core.database.entity.QueueStateEntity
 import com.naudio.core.database.entity.TrackEntity
 
 /**
- * Version 4 database (M13): adds the user-playlist tables — `playlists` and
- * the ordered `playlist_tracks` membership table (composite
- * (provider_id, track_id) identity + unique per-playlist index) — while
- * leaving every existing table untouched. The v3→v4 migration is pure
- * `CREATE TABLE`, so favorites, artwork metadata, queue rows and the queue
- * position all survive untouched.
+ * Version 5 database (M17): adds the `history` table — the append-only
+ * playback-history event log with its own metadata snapshot — while leaving
+ * every existing table untouched. The v4→v5 migration is pure `CREATE TABLE`
+ * plus `CREATE INDEX`, so favorites, artwork metadata, playlists, queue rows
+ * and the queue position all survive untouched.
  */
 @Database(
     entities = [
@@ -30,8 +31,9 @@ import com.naudio.core.database.entity.TrackEntity
         QueueStateEntity::class,
         PlaylistEntity::class,
         PlaylistTrackCrossRef::class,
+        HistoryEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class NaudioDatabase : RoomDatabase() {
@@ -41,6 +43,8 @@ abstract class NaudioDatabase : RoomDatabase() {
     abstract fun queueDao(): QueueDao
 
     abstract fun playlistDao(): PlaylistDao
+
+    abstract fun historyDao(): HistoryDao
 
     companion object {
         private const val NAME = "naudio.db"
@@ -148,9 +152,44 @@ abstract class NaudioDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * M17: creates the `history` event-log table. It is intentionally
+         * foreign-key free: a listening event is a metadata snapshot that must
+         * outlive the track row, and it carries no reference to delete or
+         * cascade. The single index on `played_at` backs the newest-first
+         * ordering used by the retention trim and by the Recently Played
+         * queries. The SQL mirrors exactly what Room generates for the v5
+         * entity so the migrated schema validates. Public so
+         * [androidx.room.testing.MigrationTestHelper]-based tests can run the
+         * same migration the builder registers.
+         */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `history` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `provider_id` TEXT NOT NULL,
+                        `track_id` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `artist` TEXT NOT NULL,
+                        `album` TEXT,
+                        `artwork_url` TEXT,
+                        `duration_ms` INTEGER NOT NULL,
+                        `played_at` INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_history_played_at` " +
+                        "ON `history` (`played_at`)",
+                )
+            }
+        }
+
         fun open(context: Context): NaudioDatabase {
             return Room.databaseBuilder(context, NaudioDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
         }
     }

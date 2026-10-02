@@ -11,7 +11,8 @@ import com.naudio.core.model.Track
  * Deterministic MediaItem identity scheme for the Android Auto browse tree
  * (M14). Three layers of IDs:
  *
- *  - folders:      [ROOT_MEDIA_ID], [FAVORITES_MEDIA_ID], [PLAYLISTS_MEDIA_ID]
+ *  - folders:      [ROOT_MEDIA_ID], [FAVORITES_MEDIA_ID], [PLAYLISTS_MEDIA_ID],
+ *                  [HISTORY_MEDIA_ID]
  *  - playlists:    `playlist:<id>`
  *  - tracks:       `track:` + Base64Url( length-prefixed (providerId, trackId[, playlistId]) )
  *
@@ -39,10 +40,17 @@ object MediaItemMapper {
     /** Browsable folder holding every user playlist. */
     const val PLAYLISTS_MEDIA_ID = "playlists-folder"
 
+    /**
+     * M17: browsable folder holding the recently played history events, newest
+     * first. Rendered from the history rows' metadata snapshots.
+     */
+    const val HISTORY_MEDIA_ID = "history-folder"
+
     private const val PLAYLIST_PREFIX = "playlist:"
     private const val TRACK_PREFIX = "track:"
     private const val PLAYLIST_CONTEXT_PREFIX = "pl"
     private const val TRACK_IN_FAVORITES = "fav"
+    private const val TRACK_IN_HISTORY = "hist"
     private const val TRACK_NO_CONTEXT = "none"
 
     /**
@@ -51,6 +59,13 @@ object MediaItemMapper {
      * [TrackContext.FAVORITES].
      */
     const val FAVORITES_CONTEXT = -1L
+
+    /**
+     * M17: sentinel "playlist id" meaning "this track was served from the
+     * Recently Played folder". Passed to [trackIdOf] instead of a real playlist
+     * id; decodes back to [TrackContext.HISTORY].
+     */
+    const val HISTORY_CONTEXT = -2L
 
     /** Upper bound on accepted ids; guards against pathological inputs. */
     private const val MAX_MEDIA_ID_LENGTH = 4096
@@ -67,6 +82,12 @@ object MediaItemMapper {
 
         /** Served from the playlist with the given id. */
         PLAYLIST,
+
+        /**
+         * M17: served from the Recently Played folder, so playing it enqueues
+         * the history list exactly the way Favorites enqueues the favorites.
+         */
+        HISTORY,
     }
 
     /** Decoded structure of a media id. */
@@ -74,6 +95,9 @@ object MediaItemMapper {
         data object Root : MediaId
         data object Favorites : MediaId
         data object Playlists : MediaId
+
+        /** The Recently Played folder (M17). */
+        data object History : MediaId
 
         /** A user playlist node. */
         data class Playlist(val playlistId: Long) : MediaId
@@ -103,10 +127,13 @@ object MediaItemMapper {
      */
     fun trackIdOf(providerId: String, trackId: String, playlistId: Long? = null): String? {
         if (providerId.isEmpty() || trackId.isEmpty()) return null
-        if (playlistId != null && playlistId < 0L && playlistId != FAVORITES_CONTEXT) return null
+        if (playlistId != null && playlistId < 0L && playlistId != FAVORITES_CONTEXT && playlistId != HISTORY_CONTEXT) {
+            return null
+        }
         val contextField = when (playlistId) {
             null -> TRACK_NO_CONTEXT
             FAVORITES_CONTEXT -> TRACK_IN_FAVORITES
+            HISTORY_CONTEXT -> TRACK_IN_HISTORY
             else -> PLAYLIST_CONTEXT_PREFIX + playlistId
         }
         val payload = buildString {
@@ -129,6 +156,7 @@ object MediaItemMapper {
             ROOT_MEDIA_ID -> MediaId.Root
             FAVORITES_MEDIA_ID -> MediaId.Favorites
             PLAYLISTS_MEDIA_ID -> MediaId.Playlists
+            HISTORY_MEDIA_ID -> MediaId.History
             else -> decodePlaylistOrTrack(mediaId)
         }
     }
@@ -171,6 +199,10 @@ object MediaItemMapper {
             contextField == TRACK_IN_FAVORITES -> {
                 context = TrackContext.FAVORITES
                 playlistId = FAVORITES_CONTEXT
+            }
+            contextField == TRACK_IN_HISTORY -> {
+                context = TrackContext.HISTORY
+                playlistId = HISTORY_CONTEXT
             }
             contextField.startsWith(PLAYLIST_CONTEXT_PREFIX) -> {
                 context = TrackContext.PLAYLIST

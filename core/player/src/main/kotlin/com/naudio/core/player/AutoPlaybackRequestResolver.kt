@@ -5,8 +5,8 @@ import kotlinx.coroutines.flow.first
 
 /**
  * Turns an Android Auto media-id play request into a delegation to the
- * existing playback path: the requested track's whole collection (playlist or
- * favorites, in repository order) is handed to
+ * existing playback path: the requested track's whole collection (playlist,
+ * favorites or — M17 — recent history, in repository order) is handed to
  * [AutoPlaybackBridge.playCollection] at the tapped index — the same entry
  * point the mobile UI uses, so the persistent queue, just-in-time resolution
  * and the single player all remain authoritative.
@@ -51,6 +51,14 @@ class AutoPlaybackRequestResolver(
             }
             MediaItemMapper.TrackContext.FAVORITES -> {
                 val tracks = browseTree.observeFavorites().first()
+                tracks to tracks.indexOfFirst {
+                    it.providerId == trackId.providerId && it.id == trackId.trackId
+                }
+            }
+            // M17: a history node enqueues the recent-history list, exactly the
+            // way a favorites node enqueues favorites.
+            MediaItemMapper.TrackContext.HISTORY -> {
+                val tracks = browseTree.observeRecentHistory().first()
                 tracks to tracks.indexOfFirst {
                     it.providerId == trackId.providerId && it.id == trackId.trackId
                 }

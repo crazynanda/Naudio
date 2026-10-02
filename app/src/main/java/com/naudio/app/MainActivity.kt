@@ -72,6 +72,7 @@ private fun NaudioRoute(container: AppContainer) {
         HomeViewModel(
             repository = container.libraryRepository,
             registry = container.providerRegistry,
+            historyRepository = container.historyRepository,
         )
     }
     val libraryViewModel: LibraryViewModel = viewModel {
@@ -156,6 +157,9 @@ private fun NaudioRoute(container: AppContainer) {
             onQueryChange = homeViewModel::onQueryChange,
             onRetry = homeViewModel::onRetry,
             onTrackSelected = playbackViewModel::onTrackSelected,
+            // M17: a Recently Played item re-enters playback through the very
+            // same single-item-queue entry point a search result uses.
+            onHistoryEntrySelected = playbackViewModel::onTrackSelected,
             onTogglePlayPause = playbackViewModel::onTogglePlayPause,
             onSkipToNext = playbackViewModel::skipToNext,
             onSkipToPrevious = playbackViewModel::skipToPrevious,

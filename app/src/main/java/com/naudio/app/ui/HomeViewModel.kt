@@ -2,8 +2,10 @@ package com.naudio.app.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.naudio.core.model.History
 import com.naudio.core.model.Track
 import com.naudio.data.provider.ProviderRegistry
+import com.naudio.data.repository.HistoryRepository
 import com.naudio.data.repository.LibraryQueryState
 import com.naudio.data.repository.LibraryRepository
 import com.naudio.provider.api.ProviderId
@@ -32,6 +34,13 @@ data class HomeUiState(
     val activeProviderId: String? = null,
     val providers: List<ProviderOption> = emptyList(),
     val searchState: LibraryQueryState = LibraryQueryState.Idle,
+    /**
+     * M17: the most recent playback-history events, newest first. Read-only
+     * projection of the history log — the ViewModel never writes history, and
+     * the same list is what Android Auto browses. Empty means the row is
+     * hidden entirely.
+     */
+    val recentlyPlayed: List<History> = emptyList(),
 ) {
     val results: List<Track>
         get() = (searchState as? LibraryQueryState.Results)?.tracks.orEmpty()
@@ -45,6 +54,7 @@ data class HomeUiState(
 class HomeViewModel(
     private val repository: LibraryRepository,
     private val registry: ProviderRegistry,
+    historyRepository: HistoryRepository,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -55,18 +65,24 @@ class HomeViewModel(
     private val search = combine(query.debounce(300), retrySignal) { q, _ -> q }
         .flatMapLatest { q -> repository.search(flowOf(q)) }
 
+    // M17: reading the history repository is all this ViewModel does with it —
+    // the account lives in HistoryTracker and the persistence in Room.
+    private val recentlyPlayed = historyRepository.observeRecent()
+
     val uiState: StateFlow<HomeUiState> = combine(
         query,
         repository.activeProviderName(),
         registry.active,
         search,
-    ) { q, providerName, activeProvider, searchState ->
+        recentlyPlayed,
+    ) { q, providerName, activeProvider, searchState, history ->
         HomeUiState(
             query = q,
             providerName = providerName,
             activeProviderId = activeProvider?.id?.value,
             providers = registry.all().map { ProviderOption(it.id.value, it.displayName) },
             searchState = searchState,
+            recentlyPlayed = history,
         )
     }.stateIn(
         scope = viewModelScope,

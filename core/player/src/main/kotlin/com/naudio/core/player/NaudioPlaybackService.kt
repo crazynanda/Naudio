@@ -266,9 +266,12 @@ class NaudioPlaybackService : MediaLibraryService() {
                 MediaItemMapper.MediaId.Favorites -> immediateItem(
                     MediaItemMapper.folderItem(MediaItemMapper.FAVORITES_MEDIA_ID, FAVORITES_TITLE),
                 )
-                MediaItemMapper.MediaId.Playlists -> immediateItem(
-                    MediaItemMapper.folderItem(MediaItemMapper.PLAYLISTS_MEDIA_ID, PLAYLISTS_TITLE),
-                )
+            MediaItemMapper.MediaId.Playlists -> immediateItem(
+                MediaItemMapper.folderItem(MediaItemMapper.PLAYLISTS_MEDIA_ID, PLAYLISTS_TITLE),
+            )
+            MediaItemMapper.MediaId.History -> immediateItem(
+                MediaItemMapper.folderItem(MediaItemMapper.HISTORY_MEDIA_ID, HISTORY_TITLE),
+            )
                 is MediaItemMapper.MediaId.Playlist -> fetchItem() {
                     browseTree?.observePlaylists()?.first()
                         ?.firstOrNull { it.playlistId == id.playlistId }
@@ -300,6 +303,8 @@ class NaudioPlaybackService : MediaLibraryService() {
                         ImmutableList.of(
                             MediaItemMapper.folderItem(MediaItemMapper.FAVORITES_MEDIA_ID, FAVORITES_TITLE),
                             MediaItemMapper.folderItem(MediaItemMapper.PLAYLISTS_MEDIA_ID, PLAYLISTS_TITLE),
+                            // M17: same HistoryRepository the Home row reads.
+                            MediaItemMapper.folderItem(MediaItemMapper.HISTORY_MEDIA_ID, HISTORY_TITLE),
                         ),
                         params,
                     ),
@@ -328,6 +333,22 @@ class NaudioPlaybackService : MediaLibraryService() {
                         MediaItemMapper.trackMediaItem(
                             track,
                             MediaItemMapper.trackIdOf(track.providerId, track.id, id.playlistId),
+                        )
+                    } ?: emptyList()
+                }
+                // M17: history nodes render from their stored metadata snapshot
+                // (no provider lookup, no network) and carry the history context
+                // so selecting one enqueues the recent-history list through the
+                // existing resolver -> bridge -> coordinator path.
+                MediaItemMapper.MediaId.History -> fetchList(params) {
+                    browseTree?.observeRecentHistory()?.first()?.map { track ->
+                        MediaItemMapper.trackMediaItem(
+                            track,
+                            MediaItemMapper.trackIdOf(
+                                track.providerId,
+                                track.id,
+                                MediaItemMapper.HISTORY_CONTEXT,
+                            ),
                         )
                     } ?: emptyList()
                 }
@@ -503,5 +524,8 @@ class NaudioPlaybackService : MediaLibraryService() {
         const val ROOT_TITLE = "Naudio"
         const val FAVORITES_TITLE = "Favorites"
         const val PLAYLISTS_TITLE = "Playlists"
+
+        /** M17: the Android Auto label for the Recently Played folder. */
+        const val HISTORY_TITLE = "Recently Played"
     }
 }

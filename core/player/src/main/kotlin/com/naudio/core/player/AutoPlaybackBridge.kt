@@ -22,6 +22,18 @@ interface AutoBrowseTreeProvider {
     /** One playlist's tracks in the repository's own ordering (position ASC). */
     fun observePlaylistTracks(playlistId: Long): Flow<List<Track>>
 
+    /**
+     * M17: the most recent playback-history EVENTS, newest first, projected
+     * onto [Track] from their stored metadata snapshots.
+     *
+     * Returning [Track]s (rather than a separate history type) is deliberate:
+     * the browse tree stays collection-shaped, and selecting an entry reuses
+     * the identical [AutoPlaybackBridge.playCollection] path Favorites and
+     * playlists already use. The log is an event log, so a track played in two
+     * sessions appears twice.
+     */
+    fun observeRecentHistory(): Flow<List<Track>>
+
     /** Display data for a playlist node. */
     data class PlaylistNode(val playlistId: Long, val name: String, val trackCount: Int)
 }

@@ -31,6 +31,35 @@ class MediaItemMapperTest {
         assertEquals(MediaItemMapper.MediaId.Root, MediaItemMapper.decode(MediaItemMapper.ROOT_MEDIA_ID))
         assertEquals(MediaItemMapper.MediaId.Favorites, MediaItemMapper.decode(MediaItemMapper.FAVORITES_MEDIA_ID))
         assertEquals(MediaItemMapper.MediaId.Playlists, MediaItemMapper.decode(MediaItemMapper.PLAYLISTS_MEDIA_ID))
+        // M17: the Recently Played folder is a first-class browse node.
+        assertEquals(MediaItemMapper.MediaId.History, MediaItemMapper.decode(MediaItemMapper.HISTORY_MEDIA_ID))
+    }
+
+    @Test
+    fun `history track id round trips with the history context`() {
+        val id = MediaItemMapper.trackIdOf("itunes", "1440847780", MediaItemMapper.HISTORY_CONTEXT)
+        val decoded = MediaItemMapper.decode(id) as MediaItemMapper.MediaId.Track
+        assertEquals("itunes", decoded.providerId)
+        assertEquals("1440847780", decoded.trackId)
+        assertEquals(MediaItemMapper.TrackContext.HISTORY, decoded.context)
+        assertEquals(MediaItemMapper.HISTORY_CONTEXT, decoded.playlistId)
+    }
+
+    @Test
+    fun `history context does not collide with a favorites id`() {
+        val history = MediaItemMapper.decode(
+            MediaItemMapper.trackIdOf("local", "t", MediaItemMapper.HISTORY_CONTEXT),
+        ) as MediaItemMapper.MediaId.Track
+        val favorites = MediaItemMapper.decode(
+            MediaItemMapper.trackIdOf("local", "t", MediaItemMapper.FAVORITES_CONTEXT),
+        ) as MediaItemMapper.MediaId.Track
+        assertEquals(MediaItemMapper.TrackContext.HISTORY, history.context)
+        assertEquals(MediaItemMapper.TrackContext.FAVORITES, favorites.context)
+    }
+
+    @Test
+    fun `unknown sentinel context is rejected`() {
+        assertNull(MediaItemMapper.trackIdOf("local", "t", playlistId = -3L))
     }
 
     @Test
@@ -215,6 +244,26 @@ class MediaItemMapperTest {
         assertTrue(resolver.resolve(MediaItemMapper.trackIdOf("local", "a")) is AutoPlaybackRequestResolver.Outcome.NotFound)
         assertTrue(bridge.played.isEmpty())
     }
+
+    @Test
+    fun `history track request delegates the recent-history list`() = runTest {
+        val outcome = resolver.resolve(
+            MediaItemMapper.trackIdOf("local", "h2", MediaItemMapper.HISTORY_CONTEXT),
+        )
+
+        assertTrue(outcome is AutoPlaybackRequestResolver.Outcome.Delegated)
+        val (tracks, index) = bridge.played.single()
+        // Repository (newest-first) order is preserved and the tapped entry
+        // becomes the start index.
+        assertEquals(listOf("h3", "h2", "h1"), tracks.map { it.id })
+        assertEquals(1, index)
+    }
+
+    @Test
+    fun `history folder id itself is not playable`() = runTest {
+        assertTrue(resolver.resolve(MediaItemMapper.HISTORY_MEDIA_ID) is AutoPlaybackRequestResolver.Outcome.NotFound)
+        assertTrue(bridge.played.isEmpty())
+    }
 }
 
 /** Deterministic browse tree for resolver tests. */
@@ -238,11 +287,22 @@ private class FakeResolverBrowseTree : AutoBrowseTreeProvider {
         ),
     )
 
+    /** M17: newest-first history events; "h1" replayed later appears twice. */
+    val history = MutableStateFlow(
+        listOf(
+            Track("h3", "local", "Third", "Artist"),
+            Track("h2", "local", "Second", "Artist"),
+            Track("h1", "local", "First", "Artist"),
+        ),
+    )
+
     override fun observeFavorites(): Flow<List<Track>> = favorites
 
     override fun observePlaylists(): Flow<List<AutoBrowseTreeProvider.PlaylistNode>> = playlists
 
     override fun observePlaylistTracks(playlistId: Long): Flow<List<Track>> = playlistTracks
+
+    override fun observeRecentHistory(): Flow<List<Track>> = history
 }
 
 /** Records playCollection delegations. */

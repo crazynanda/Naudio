@@ -11,10 +11,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -36,12 +40,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.naudio.app.playback.PlaybackError
 import com.naudio.app.ui.theme.NaudioTheme
+import com.naudio.core.model.History
 import com.naudio.core.model.Track
 import com.naudio.core.player.PlayerState
 import com.naudio.data.repository.LibraryQueryState
@@ -61,6 +67,7 @@ fun HomeScreen(
     onQueryChange: (String) -> Unit,
     onRetry: () -> Unit,
     onTrackSelected: (Track) -> Unit,
+    onHistoryEntrySelected: (Track) -> Unit,
     onTogglePlayPause: () -> Unit,
     onSkipToNext: () -> Unit,
     onSkipToPrevious: () -> Unit,
@@ -139,6 +146,15 @@ fun HomeScreen(
                 modifier = Modifier.padding(16.dp),
             )
 
+            // M17: Recently Played. Hidden entirely while the log is empty, so
+            // a new user sees no empty carousel.
+            if (state.recentlyPlayed.isNotEmpty()) {
+                RecentlyPlayedRow(
+                    entries = state.recentlyPlayed,
+                    onEntrySelected = onHistoryEntrySelected,
+                )
+            }
+
             when {
                 !audioPermissionGranted -> PermissionRequiredPane(onRequestAudioPermission)
                 else -> when (val search = state.searchState) {
@@ -198,10 +214,78 @@ private fun ProviderSelector(
     }
 }
 
+/**
+ * M17: horizontal carousel of recent listening events, newest first.
+ *
+ * Stateless and read-only: it renders the stored metadata snapshot (artwork,
+ * title, artist) through the EXISTING [ArtworkImage] — no second artwork
+ * loader, no provider lookup, no network beyond the artwork URL itself.
+ *
+ * Entries are listening EVENTS, so the same track can legitimately appear
+ * twice; items are therefore keyed by position, never by track id, which would
+ * crash the row on duplicates.
+ *
+ * A tap emits the snapshot as a [Track] and the caller feeds it to the existing
+ * playback path — no history-specific playback route exists.
+ */
+@Composable
+private fun RecentlyPlayedRow(
+    entries: List<History>,
+    onEntrySelected: (Track) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Recently Played",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp),
+        )
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            itemsIndexed(entries) { _, entry ->
+                Column(
+                    modifier = Modifier
+                        .width(CAROUSEL_ITEM_WIDTH)
+                        .clickable { onEntrySelected(entry.toTrack()) },
+                ) {
+                    ArtworkImage(
+                        artworkUrl = entry.artworkUrl,
+                        trackTitle = entry.title,
+                        contentDescription = entry.title,
+                        cornerRadius = 8.dp,
+                        glyphSize = 28.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(CAROUSEL_ITEM_WIDTH),
+                    )
+                    Text(
+                        text = entry.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                    Text(
+                        text = entry.artist,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Fixed width of a carousel item so the row stays horizontally scrollable. */
+private val CAROUSEL_ITEM_WIDTH = 120.dp
+
 /** Shown when media-read permission is missing; the provider is never queried. */
 @Composable
-private fun PermissionRequiredPane(onRequestAudioPermission: () -> Unit) {
-    Column(
+private fun PermissionRequiredPane(onRequestAudioPermission: () -> Unit) {    Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -319,6 +403,19 @@ private fun HomeScreenPreview() {
                 providers = listOf(ProviderOption("local", "Local library")),
                 activeProviderId = "local",
                 searchState = LibraryQueryState.Idle,
+                recentlyPlayed = listOf(
+                    History(
+                        id = 1L,
+                        providerId = "itunes",
+                        trackId = "recent-1",
+                        title = "Around the World",
+                        artist = "Daft Punk",
+                        album = "Discovery",
+                        artworkUrl = "https://example.test/600x600bb.jpg",
+                        durationMs = 429_000L,
+                        playedAt = 1_727_600_000_000L,
+                    ),
+                ),
             ),
             playerState = PlayerState(),
             playbackError = null,
@@ -326,6 +423,7 @@ private fun HomeScreenPreview() {
             onQueryChange = {},
             onRetry = {},
             onTrackSelected = {},
+            onHistoryEntrySelected = {},
             onTogglePlayPause = {},
             onSkipToNext = {},
             onSkipToPrevious = {},

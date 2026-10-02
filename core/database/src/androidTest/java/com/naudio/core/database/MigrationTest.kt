@@ -19,6 +19,8 @@ import org.junit.Test
  *   the persisted queue index all survive untouched.
  * - 3→4 (M13): the user-playlist tables are created while favorites, artwork
  *   metadata, queue rows and the queue position all survive untouched.
+ * - 4→5 (M17): the `history` event-log table is created while every v4 table
+ *   survives untouched.
  */
 class MigrationTest {
 
@@ -47,15 +49,19 @@ class MigrationTest {
         migrated.close()
 
         // Re-open the migrated file with the real database class and verify
-        // the data through the typed DAOs. The 2→3 and 3→4 migrations are
-        // registered so the open continues to the current (v4) schema without
+        // the data through the typed DAOs. The 2→3, 3→4 and 4→5 migrations are
+        // registered so the open continues to the current (v5) schema without
         // recreating.
         val db = Room.databaseBuilder(
             ApplicationProvider.getApplicationContext(),
             NaudioDatabase::class.java,
             DB_NAME,
         )
-            .addMigrations(NaudioDatabase.MIGRATION_2_3, NaudioDatabase.MIGRATION_3_4)
+            .addMigrations(
+                NaudioDatabase.MIGRATION_2_3,
+                NaudioDatabase.MIGRATION_3_4,
+                NaudioDatabase.MIGRATION_4_5,
+            )
             .build()
 
         // Favorites data survived the migration.
@@ -124,13 +130,13 @@ class MigrationTest {
 
         // Re-open with the real database class and verify everything through
         // the typed DAOs. The file sits at v3 after the validated migration,
-        // so the 3→4 migration is registered to finish the open at v4.
+        // so the 3→4 and 4→5 migrations are registered to finish the open at v5.
         val db = Room.databaseBuilder(
             ApplicationProvider.getApplicationContext(),
             NaudioDatabase::class.java,
             DB_NAME_2_3,
         )
-            .addMigrations(NaudioDatabase.MIGRATION_3_4)
+            .addMigrations(NaudioDatabase.MIGRATION_3_4, NaudioDatabase.MIGRATION_4_5)
             .build()
 
         // Track rows survived: favorite state, savedAt, and metadata intact.
@@ -220,12 +226,13 @@ class MigrationTest {
         migrated.close()
 
         // Re-open with the real database class and verify everything through
-        // the typed DAOs.
+        // the typed DAOs. The file sits at v4 after the validated migration, so
+        // the 4→5 migration is registered to finish the open at v5.
         val db = Room.databaseBuilder(
             ApplicationProvider.getApplicationContext(),
             NaudioDatabase::class.java,
             DB_NAME_3_4,
-        ).build()
+        ).addMigrations(NaudioDatabase.MIGRATION_4_5).build()
 
         // Favorites survived, with M12 artwork metadata intact.
         val favorites = db.trackDao().observeFavorites().first()
@@ -258,9 +265,136 @@ class MigrationTest {
         db.close()
     }
 
+    @Test
+    fun migrate4To5_createsHistoryTable_andPreservesAllData() = runTest {
+        // Build a realistic v4 database: a favorited track with artwork
+        // metadata, a persisted two-item queue and a queue position, plus a
+        // playlist with one member — i.e. everything M13/M14 left behind.
+        val v4 = helper.createDatabase(DB_NAME_4_5, 4)
+        v4.execSQL(
+            """
+            INSERT INTO tracks (id, provider_id, title, artist, duration_ms, album, artwork_url, is_favorite, saved_at)
+            VALUES ('fav1', 'itunes', 'Around the World', 'Daft Punk', 7289000, 'Discovery', 'https://is1-ssl.mzstatic.com/600x600bb.jpg', 1, 1727600000000)
+            """.trimIndent(),
+        )
+        v4.execSQL(
+            """
+            INSERT INTO tracks (id, provider_id, title, artist, duration_ms, is_favorite, saved_at)
+            VALUES ('plain', 'local', 'Test Tone', 'Naudio', 3000, 0, NULL)
+            """.trimIndent(),
+        )
+        v4.execSQL(
+            """
+            INSERT INTO queue_items (order_index, provider_id, track_id, title, artist, duration_ms, album, artwork_url)
+            VALUES (0, 'itunes', 'fav1', 'Around the World', 'Daft Punk', 7289000, 'Discovery', 'https://is1-ssl.mzstatic.com/600x600bb.jpg')
+            """.trimIndent(),
+        )
+        v4.execSQL(
+            """
+            INSERT INTO queue_items (order_index, provider_id, track_id, title, artist, duration_ms)
+            VALUES (1, 'local', 'plain', 'Test Tone', 'Naudio', 3000)
+            """.trimIndent(),
+        )
+        v4.execSQL("INSERT INTO queue_state (id, current_index) VALUES (0, 1)")
+        v4.execSQL("INSERT INTO playlists (id, name, created_at) VALUES (1, 'Migrated', 5)")
+        v4.execSQL(
+            """
+            INSERT INTO playlist_tracks (playlist_id, provider_id, track_id, position)
+            VALUES (1, 'itunes', 'fav1', 0)
+            """.trimIndent(),
+        )
+        v4.close()
+
+        // Run MIGRATION_4_5; Room validates the result against the exported v5
+        // descriptor (this already fails if the table, a column, the primary
+        // key or the played_at index is missing or mistyped).
+        val migrated = helper.runMigrationsAndValidate(DB_NAME_4_5, 5, true, NaudioDatabase.MIGRATION_4_5)
+
+        // The history table exists with the expected shape, and starts empty.
+        migrated.query("SELECT * FROM history").use { cursor ->
+            assertTrue(cursor.getColumnIndex("id") >= 0)
+            assertTrue(cursor.getColumnIndex("provider_id") >= 0)
+            assertTrue(cursor.getColumnIndex("track_id") >= 0)
+            assertTrue(cursor.getColumnIndex("title") >= 0)
+            assertTrue(cursor.getColumnIndex("artist") >= 0)
+            assertTrue(cursor.getColumnIndex("album") >= 0)
+            assertTrue(cursor.getColumnIndex("artwork_url") >= 0)
+            assertTrue(cursor.getColumnIndex("duration_ms") >= 0)
+            assertTrue(cursor.getColumnIndex("played_at") >= 0)
+            assertEquals(0, cursor.count)
+        }
+        migrated.query("SELECT COUNT(*) FROM history").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+        // The played_at index is in place (Room's schema validation checks the
+        // schema; this asserts it is actually usable by the retention trim).
+        migrated.query(
+            """
+            SELECT COUNT(*) FROM sqlite_master
+            WHERE type = 'index' AND name = 'index_history_played_at'
+            """.trimIndent(),
+        ).use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(1, cursor.getInt(0))
+        }
+        migrated.close()
+
+        // Re-open with the real database class and verify every v4 table
+        // survived and the new DAO is usable.
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            NaudioDatabase::class.java,
+            DB_NAME_4_5,
+        ).build()
+
+        // Favorites, artwork metadata and savedAt survived.
+        val favorites = db.trackDao().observeFavorites().first()
+        assertEquals(1, favorites.size)
+        assertEquals("fav1", favorites.single().id)
+        assertTrue(favorites.single().isFavorite)
+        assertEquals(1727600000000L, favorites.single().savedAt)
+        assertEquals("Discovery", favorites.single().album)
+        assertEquals("https://is1-ssl.mzstatic.com/600x600bb.jpg", favorites.single().artworkUrl)
+
+        // Queue rows and position survived.
+        val queue = db.queueDao().observeQueue().first()
+        assertEquals(2, queue.size)
+        assertEquals("fav1", queue[0].trackId)
+        assertEquals(1, db.queueDao().observeState().first()?.currentIndex)
+
+        // Playlists survived.
+        val playlist = db.playlistDao().playlistWithCount(1L)
+        assertEquals("Migrated", playlist?.playlist?.name)
+        assertEquals(1, playlist?.trackCount)
+        assertEquals("fav1", db.playlistDao().observeTracks(1L).first().single().id)
+
+        // The history table is usable through the typed DAO.
+        val historyId = db.historyDao().insert(
+            com.naudio.core.database.entity.HistoryEntity(
+                providerId = "itunes",
+                trackId = "fav1",
+                title = "Around the World",
+                artist = "Daft Punk",
+                album = "Discovery",
+                artworkUrl = "https://is1-ssl.mzstatic.com/600x600bb.jpg",
+                durationMs = 7_289_000L,
+                playedAt = 1_727_600_000_000L,
+            ),
+        )
+        assertTrue(historyId > 0L)
+        val history = db.historyDao().observeRecent(10).first()
+        assertEquals(1, history.size)
+        assertEquals("fav1", history.single().trackId)
+        assertEquals(1_727_600_000_000L, history.single().playedAt)
+        assertEquals(1, db.historyDao().count())
+        db.close()
+    }
+
     private companion object {
         const val DB_NAME = "migration-test.db"
         const val DB_NAME_2_3 = "migration-test-2-3.db"
         const val DB_NAME_3_4 = "migration-test-3-4.db"
+        const val DB_NAME_4_5 = "migration-test-4-5.db"
     }
 }

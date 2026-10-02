@@ -20,6 +20,14 @@ class NaudioApplication : Application(), PlaybackDependenciesProvider {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // M17: start listening-session accounting for the whole application
+        // lifetime, before any UI exists. Touching the lazy here is what makes
+        // history independent of which surface started playback — the Home
+        // screen, an Auto session or a restored queue are all accounted for —
+        // and it holds no Activity reference, so it survives navigation. The
+        // tracker's coroutine is a child of the container's application scope
+        // and is cancelled with it.
+        container.historyTracker
     }
 
     override val autoPlaybackBridge: AutoPlaybackBridge
