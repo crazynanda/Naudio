@@ -134,23 +134,53 @@ internal class FakePlaybackController : PlaybackController {
     var loadedTrack: Track? = null
     var loadCount = 0
     var playCalls = 0
+    var pauseCalls = 0
+    var seekPositions = mutableListOf<Long>()
+
+    // M16: playback modes. The fake mirrors the real controller's contract:
+    // a command updates the state, which is what the UI then observes.
+    var setShuffleCalls = mutableListOf<Boolean>()
+    var setRepeatCalls = mutableListOf<Int>()
 
     fun emitStatus(status: PlaybackStatus) {
-        _state.value = PlayerState(status = status, track = loadedTrack)
+        _state.value = _state.value.copy(status = status, track = loadedTrack)
+    }
+
+    /** M16: simulate Media3 looping the current item (REPEAT transition). */
+    fun emitRepeatLoop(repeatMode: Int = _state.value.repeatMode) {
+        _state.value = _state.value.copy(
+            repeatMode = repeatMode,
+            repeatLoopCount = _state.value.repeatLoopCount + 1,
+        )
     }
 
     override fun load(track: Track, source: AudioSource) {
         loadCount++
         loadedTrack = track
-        _state.value = PlayerState(status = PlaybackStatus.READY, isPlaying = true, track = track)
+        _state.value = _state.value.copy(status = PlaybackStatus.READY, isPlaying = true, track = track)
     }
 
     override fun play() {
         playCalls++
     }
 
-    override fun pause() {}
+    override fun pause() {
+        pauseCalls++
+    }
     override fun stop() {}
-    override fun seekTo(positionMs: Long) {}
+    override fun seekTo(positionMs: Long) {
+        seekPositions.add(positionMs)
+    }
+
+    override fun setShuffleModeEnabled(enabled: Boolean) {
+        setShuffleCalls.add(enabled)
+        _state.value = _state.value.copy(shuffleModeEnabled = enabled)
+    }
+
+    override fun setRepeatMode(repeatMode: Int) {
+        setRepeatCalls.add(repeatMode)
+        _state.value = _state.value.copy(repeatMode = repeatMode)
+    }
+
     override fun release() {}
 }

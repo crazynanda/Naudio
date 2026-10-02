@@ -51,6 +51,13 @@ class MediaControllerPlaybackController(context: Context) : PlaybackController {
         override fun onPlaybackStateChanged(playbackState: Int) = refreshSnapshot()
         override fun onIsPlayingChanged(isPlaying: Boolean) = refreshSnapshot()
 
+        // M16: shuffle/repeat are owned by Media3. The listener re-reads the
+        // real values instead of trusting whatever the caller just asked for,
+        // so a change made from Android Auto (or any other session client)
+        // lands in the app's PlayerState through exactly the same path.
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = refreshSnapshot()
+        override fun onRepeatModeChanged(repeatMode: Int) = refreshSnapshot()
+
         override fun onPlayerError(error: PlaybackException) {
             _state.update {
                 it.copy(
@@ -66,6 +73,15 @@ class MediaControllerPlaybackController(context: Context) : PlaybackController {
                 it.copy(
                     track = mediaItem?.localConfiguration?.tag as? Track ?: it.track,
                     errorMessage = null,
+                    // M16: a REPEAT transition means Media3 finished the item
+                    // and looped it. Surfaced as a counter (the track itself is
+                    // unchanged, so a plain state diff would not emit) so the
+                    // coordinator can advance the queue for REPEAT_MODE_ALL.
+                    repeatLoopCount = if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
+                        it.repeatLoopCount + 1
+                    } else {
+                        it.repeatLoopCount
+                    },
                 )
             }
         }
@@ -116,6 +132,14 @@ class MediaControllerPlaybackController(context: Context) : PlaybackController {
         controller.seekTo(positionMs.coerceAtLeast(0L))
     }
 
+    override fun setShuffleModeEnabled(enabled: Boolean) = whenConnected { controller ->
+        controller.shuffleModeEnabled = enabled
+    }
+
+    override fun setRepeatMode(repeatMode: Int) = whenConnected { controller ->
+        controller.repeatMode = repeatMode
+    }
+
     override fun release() {
         pendingCommands.clear()
         mediaController?.removeListener(playerListener)
@@ -159,6 +183,9 @@ class MediaControllerPlaybackController(context: Context) : PlaybackController {
                 } else {
                     current.durationMs
                 },
+                // M16: always the live Media3 values, never a local guess.
+                shuffleModeEnabled = controller.shuffleModeEnabled,
+                repeatMode = controller.repeatMode,
             )
         }
     }

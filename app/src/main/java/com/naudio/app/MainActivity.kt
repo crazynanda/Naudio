@@ -267,6 +267,10 @@ private fun NaudioRoute(container: AppContainer) {
             onRemoveQueueItem = playbackViewModel::removeQueueItem,
             onPlaybackErrorShown = playbackViewModel::onErrorShown,
             onLyricsSeek = lyricsViewModel::onSeek,
+            // M16: playback modes — commands go to the player, state comes
+            // from PlayerState, so Auto and the mobile UI cannot diverge.
+            onToggleShuffle = playbackViewModel::onToggleShuffle,
+            onCycleRepeatMode = playbackViewModel::onCycleRepeatMode,
         )
     }
 

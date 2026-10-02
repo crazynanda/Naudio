@@ -28,6 +28,12 @@ fun PlayerControls(
     onTogglePlayPause: () -> Unit,
     onSkipToNext: () -> Unit,
     onSeek: (Long) -> Unit,
+    // M16: playback modes. Values come from PlayerState (the real Media3
+    // state); this composable holds no shuffle/repeat state of its own.
+    shuffleModeEnabled: Boolean = false,
+    repeatMode: Int = 0,
+    onToggleShuffle: () -> Unit = {},
+    onCycleRepeatMode: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -66,6 +72,41 @@ fun PlayerControls(
             }
             TextButton(onClick = onSkipToNext) { Text("Next") }
         }
+        // M16: playback modes row, styled like the transport row above.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onToggleShuffle) {
+                Text(
+                    text = "Shuffle",
+                    // Active state is the primary colour; inactive is the
+                    // muted colour used by the rest of the player.
+                    color = if (shuffleModeEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+            TextButton(onClick = onCycleRepeatMode) {
+                Text(
+                    // Distinct label per mode, so the three states are
+                    // distinguishable without relying on colour alone.
+                    text = repeatLabel(repeatMode),
+                    color = if (repeatMode == 0) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
     }
 }
 
@@ -75,4 +116,15 @@ internal fun formatTime(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%d:%02d".format(minutes, seconds)
+}
+
+/**
+ * M16: the repeat-mode label, kept next to the controls so the three states
+ * stay in sync. Media3 constants are used rather than local magic numbers; an
+ * unrecognised value is treated as "off".
+ */
+internal fun repeatLabel(repeatMode: Int): String = when (repeatMode) {
+    1 -> "Repeat One"
+    2 -> "Repeat All"
+    else -> "Repeat"
 }

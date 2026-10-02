@@ -32,6 +32,20 @@ interface PlaybackController {
     /** Seek within the current media, clamped to [0, duration]. */
     fun seekTo(positionMs: Long)
 
+    /**
+     * M16: enable or disable the player's shuffle mode. The resulting state
+     * is reported back through [state] by the implementation — callers must
+     * not update their own state optimistically.
+     */
+    fun setShuffleModeEnabled(enabled: Boolean)
+
+    /**
+     * M16: set the player's repeat mode. [repeatMode] is one of Media3's
+     * `Player.REPEAT_MODE_*` constants (`OFF`, `ONE`, `ALL`); the effective
+     * value is reported back through [state].
+     */
+    fun setRepeatMode(repeatMode: Int)
+
     /** Disconnect and stop issuing commands; safe to call multiple times. */
     fun release()
 }

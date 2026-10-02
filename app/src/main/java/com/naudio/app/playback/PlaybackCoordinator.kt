@@ -1,5 +1,6 @@
 package com.naudio.app.playback
 
+import androidx.media3.common.Player
 import com.naudio.core.model.Track
 import com.naudio.core.player.PlaybackController
 import com.naudio.core.player.PlaybackStatus
@@ -80,6 +81,18 @@ class PlaybackCoordinator(
     /** Serializes queue-table mutations so rapid replaces cannot interleave. */
     private val persistMutex = Mutex()
 
+    /**
+     * M16: last observed Media3 repeat-loop counter. Together with the initial
+     * `null` this distinguishes "the loop counter moved" from "this is merely
+     * the first emission", so a repeat transition can be told apart from the
+     * initial state (which must never advance the queue).
+     *
+     * Declared with the other coordinator state, ahead of `init`, so its
+     * initializer is guaranteed to have run before the observer below reads
+     * it regardless of the scope's dispatcher.
+     */
+    private var lastRepeatLoopCount: Long? = null
+
     init {
         restoreJob = scope.launch { restore() }
         // Auto-advance: when the player reports ENDED and a next queue item
@@ -94,6 +107,29 @@ class PlaybackCoordinator(
                     if (status == PlaybackStatus.ENDED && hasLoadedMedia) {
                         advanceFromNextIndex()
                     }
+                }
+        }
+        // M16: queue-level REPEAT_MODE_ALL. Naudio's queue lives here while
+        // Media3 holds a single-item timeline, so when the player loops that
+        // item it never reports ENDED and the auto-advance above cannot fire.
+        // Media3 still owns the repeat MODE (PlayerState mirrors it verbatim,
+        // and Android Auto sees the same value); this only translates "the
+        // player looped" into "the queue should move on" for REPEAT_MODE_ALL.
+        // REPEAT_MODE_ONE and REPEAT_MODE_OFF are untouched: the player loops
+        // the current track natively, and OFF keeps using the ENDED path.
+        scope.launch {
+            playbackController.state
+                .map { it.repeatLoopCount to it.repeatMode }
+                .distinctUntilChanged()
+                .collect { (loopCount, repeatMode) ->
+                    if (lastRepeatLoopCount != null &&
+                        loopCount != lastRepeatLoopCount &&
+                        repeatMode == Player.REPEAT_MODE_ALL &&
+                        hasLoadedMedia
+                    ) {
+                        advanceForRepeatAll()
+                    }
+                    lastRepeatLoopCount = loopCount
                 }
         }
     }
@@ -277,6 +313,23 @@ class PlaybackCoordinator(
             // completion, and the track stays visible/favoritable.
             return
         }
+        resolveJob?.cancel()
+        commitIndex(next)
+        startLoadAtCurrentIndex()
+    }
+
+    /**
+     * M16: queue advance for REPEAT_MODE_ALL. Identical to
+     * [advanceFromNextIndex] except that it wraps from the last queue item
+     * back to the first, which is what "repeat all" means for Naudio's
+     * coordinator-owned queue. Unresolvable items are skipped exactly as in
+     * [advanceFromNextIndex], and a single-item queue simply reloads itself.
+     */
+    private fun advanceForRepeatAll() {
+        val index = _state.value.currentIndex
+        val queue = _state.value.queue
+        if (queue.isEmpty()) return
+        val next = if (index == null) 0 else (index + 1) % queue.size
         resolveJob?.cancel()
         commitIndex(next)
         startLoadAtCurrentIndex()

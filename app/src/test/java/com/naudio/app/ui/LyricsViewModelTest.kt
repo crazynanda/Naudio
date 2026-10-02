@@ -54,6 +54,9 @@ class LyricsViewModelTest {
             override fun pause() {}
             override fun stop() {}
             override fun seekTo(positionMs: Long) {}
+            // M16: unused by the lyrics ViewModel, which only reads state.
+            override fun setShuffleModeEnabled(enabled: Boolean) {}
+            override fun setRepeatMode(repeatMode: Int) {}
             override fun release() {}
         }
         

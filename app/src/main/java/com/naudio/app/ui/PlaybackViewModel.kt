@@ -7,6 +7,7 @@ import com.naudio.app.playback.PlaybackError
 import com.naudio.core.model.Track
 import com.naudio.core.player.PlaybackController
 import com.naudio.core.player.PlayerState
+import com.naudio.core.player.PlayerStateMapper
 import com.naudio.data.repository.FavoritesRepository
 import com.naudio.data.repository.LibraryRepository
 import com.naudio.data.repository.QueueRepository
@@ -169,6 +170,25 @@ class PlaybackViewModel(
     /** Intent: user dragged the seek bar. */
     fun onSeek(positionMs: Long) {
         playbackController.seekTo(positionMs)
+    }
+
+    /**
+     * M16: toggle shuffle. The command goes to the player; the new value only
+     * reaches the UI through [playbackState] once Media3 reports it back, so
+     * this ViewModel keeps no shuffle state of its own.
+     */
+    fun onToggleShuffle() {
+        playbackController.setShuffleModeEnabled(!playbackController.state.value.shuffleModeEnabled)
+    }
+
+    /**
+     * M16: cycle repeat OFF → ALL → ONE → OFF using Media3's own constants.
+     * Like [onToggleShuffle], the resulting state is read back from the player
+     * rather than assumed here.
+     */
+    fun onCycleRepeatMode() {
+        val next = PlayerStateMapper.nextRepeatMode(playbackController.state.value.repeatMode)
+        playbackController.setRepeatMode(next)
     }
 
     override fun onCleared() {

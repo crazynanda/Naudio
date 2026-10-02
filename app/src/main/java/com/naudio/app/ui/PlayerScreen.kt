@@ -55,6 +55,9 @@ fun PlayerScreen(
     onRemoveQueueItem: (Int) -> Unit,
     onPlaybackErrorShown: () -> Unit,
     onLyricsSeek: (Long) -> Unit,
+    // M16: playback-mode intents (state comes from playerState).
+    onToggleShuffle: () -> Unit = {},
+    onCycleRepeatMode: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showLyrics by remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -117,6 +120,11 @@ fun PlayerScreen(
                 onTogglePlayPause = onTogglePlayPause,
                 onSkipToNext = onSkipToNext,
                 onSeek = onSeek,
+                // M16: playback modes read straight from the real player state.
+                shuffleModeEnabled = playerState.shuffleModeEnabled,
+                repeatMode = playerState.repeatMode,
+                onToggleShuffle = onToggleShuffle,
+                onCycleRepeatMode = onCycleRepeatMode,
                 modifier = Modifier.padding(horizontal = 24.dp),
             )
 
