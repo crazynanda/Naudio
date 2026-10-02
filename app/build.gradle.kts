@@ -46,6 +46,7 @@ dependencies {
     implementation(project(":provider:itunes"))
     implementation(project(":provider:local"))
     implementation(project(":provider:ytmusic"))
+    implementation(project(":provider:lrclib"))
     implementation(project(":core:player"))
 
     // Persistence layer: Room database + entities + DAOs.

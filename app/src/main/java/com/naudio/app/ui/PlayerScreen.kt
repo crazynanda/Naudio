@@ -21,6 +21,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +44,7 @@ fun PlayerScreen(
     playerState: PlayerState,
     playbackUiState: PlaybackUiState,
     playbackError: PlaybackError?,
+    lyricsState: LyricsState,
     onBack: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSkipToNext: () -> Unit,
@@ -51,8 +54,10 @@ fun PlayerScreen(
     onJumpToQueueIndex: (Int) -> Unit,
     onRemoveQueueItem: (Int) -> Unit,
     onPlaybackErrorShown: () -> Unit,
+    onLyricsSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showLyrics by remember { androidx.compose.runtime.mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(playbackError) {
         if (playbackError != null) {
@@ -117,15 +122,54 @@ fun PlayerScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            PlayerQueue(
-                queue = playbackUiState.queue,
-                currentIndex = playbackUiState.currentIndex,
-                onJumpToQueueIndex = onJumpToQueueIndex,
-                onRemoveQueueItem = onRemoveQueueItem,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 16.dp),
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            ) {
+                TextButton(
+                    onClick = { showLyrics = false },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "Queue",
+                        color = if (!showLyrics) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+                TextButton(
+                    onClick = { showLyrics = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "Lyrics",
+                        color = if (showLyrics) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (showLyrics) {
+                PlayerLyrics(
+                    lyricsState = lyricsState,
+                    positionMs = playerState.positionMs,
+                    isPlaying = playerState.isPlaying,
+                    onSeek = onLyricsSeek,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                )
+            } else {
+                PlayerQueue(
+                    queue = playbackUiState.queue,
+                    currentIndex = playbackUiState.currentIndex,
+                    onJumpToQueueIndex = onJumpToQueueIndex,
+                    onRemoveQueueItem = onRemoveQueueItem,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
         }

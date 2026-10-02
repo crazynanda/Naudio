@@ -93,6 +93,12 @@ private fun NaudioRoute(container: AppContainer) {
             sharedCoordinator = container.playbackCoordinator,
         )
     }
+    val lyricsViewModel: com.naudio.app.ui.LyricsViewModel = viewModel {
+        com.naudio.app.ui.LyricsViewModel(
+            playbackController = container.playbackController,
+            lyricsRepository = container.lyricsRepository
+        )
+    }
 
     val homeState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val libraryState by libraryViewModel.uiState.collectAsStateWithLifecycle()
@@ -101,6 +107,7 @@ private fun NaudioRoute(container: AppContainer) {
     val playerState by playbackViewModel.playbackState.collectAsStateWithLifecycle()
     val playbackError by playbackViewModel.playbackError.collectAsStateWithLifecycle()
     val playbackUiState by playbackViewModel.uiState.collectAsStateWithLifecycle()
+    val lyricsState by lyricsViewModel.lyricsState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // The now-playing bar shows the queue's current track — even when that
@@ -249,6 +256,7 @@ private fun NaudioRoute(container: AppContainer) {
             playerState = playerState,
             playbackUiState = playbackUiState,
             playbackError = playbackError,
+            lyricsState = lyricsState,
             onBack = ::closePlayer,
             onTogglePlayPause = playbackViewModel::onTogglePlayPause,
             onSkipToNext = playbackViewModel::skipToNext,
@@ -258,6 +266,7 @@ private fun NaudioRoute(container: AppContainer) {
             onJumpToQueueIndex = playbackViewModel::jumpToQueueIndex,
             onRemoveQueueItem = playbackViewModel::removeQueueItem,
             onPlaybackErrorShown = playbackViewModel::onErrorShown,
+            onLyricsSeek = lyricsViewModel::onSeek,
         )
     }
 

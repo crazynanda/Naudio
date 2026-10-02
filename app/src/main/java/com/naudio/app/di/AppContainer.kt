@@ -136,4 +136,12 @@ class AppContainer(context: Context) {
             playlistRepository = playlistRepository,
         )
     }
+
+    val lyricsProvider by lazy {
+        com.naudio.provider.lrclib.LrclibLyricsProvider(networkClient)
+    }
+
+    val lyricsRepository by lazy {
+        com.naudio.data.repository.LyricsRepository(lyricsProvider)
+    }
 }
