@@ -1,0 +1,55 @@
+{
+  "videoDetails": {
+    "videoId": "dQw4w9WgXcQ",
+    "title": "Never Gonna Give You Up",
+    "author": "Rick Astley",
+    "lengthSeconds": "213",
+    "thumbnail": {
+      "thumbnails": [
+        { "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg", "width": 480, "height": 360 },
+        { "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg", "width": 1280, "height": 720 }
+      ]
+    }
+  },
+  "contents": {
+    "singleColumnMusicWatchNextResultsRenderer": {
+      "related": {
+        "endItems": [
+          {
+            "compactMusicResponsiveListItemRenderer": {
+              "playlistItemData": { "videoId": "yPYZpwSpKmA" },
+              "text": {
+                "runs": [
+                  { "text": "Together Forever" },
+                  { "text": " • " },
+                  { "text": "Rick Astley" },
+                  { "text": " • " },
+                  { "text": "3:25" }
+                ]
+              }
+            }
+          },
+          {
+            "compactMusicResponsiveListItemRenderer": {
+              "playlistItemData": { "videoId": "zx3Mc9Zq4PA" },
+              "text": {
+                "runs": [
+                  { "text": "Cry For Help" },
+                  { "text": " • " },
+                  { "text": "Rick Astley" },
+                  { "text": " • " },
+                  { "text": "Free" },
+                  { "text": " • " },
+                  { "text": "4:22" }
+                ]
+              }
+            }
+          }
+        ],
+        "continuations": [
+          { "nextContinuationData": { "continuation": "RELATED-TOKEN-1" } }
+        ]
+      }
+    }
+  }
+}

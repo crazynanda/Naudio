@@ -1,0 +1,24 @@
+{
+  "playabilityStatus": {
+    "status": "OK",
+    "reason": "Playable"
+  },
+  "streamingData": {
+    "adaptiveFormats": [
+      {
+        "itag": 251,
+        "mimeType": "audio/webm; codecs=\"opus\"",
+        "bitrate": 133499,
+        "averageBitrate": 113337,
+        "signatureCipher": "s=DEADBEEF&sp=sig&url=https%3A%2F%2Frr3---sn-ciphered.example%2Fwebm-opus"
+      },
+      {
+        "itag": 140,
+        "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
+        "bitrate": 130103,
+        "averageBitrate": 129999,
+        "signatureCipher": "s=CAFEBABE&sp=sig&url=https%3A%2F%2Frr3---sn-ciphered.example%2Fmp4-m4a"
+      }
+    ]
+  }
+}

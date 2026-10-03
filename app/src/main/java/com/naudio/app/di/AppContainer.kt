@@ -21,11 +21,14 @@ import com.naudio.data.repository.TransactionRunner
 import com.naudio.provider.api.ProviderId
 import com.naudio.provider.default.DefaultMetadataProvider
 import com.naudio.provider.default.DefaultPlaybackProvider
+import com.naudio.provider.innertube.InnerTubeYtMusicBackend
+import com.naudio.provider.innertube.api.YtMusicBackend
 import com.naudio.provider.itunes.ItunesMetadataProvider
 import com.naudio.provider.itunes.ItunesPlaybackProvider
 import com.naudio.provider.local.LocalMetadataProvider
 import com.naudio.provider.local.LocalPlaybackProvider
 import com.naudio.provider.ytmusic.YtMusicMetadataProvider
+import com.naudio.provider.ytmusic.YtMusicPlaybackProvider
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +49,13 @@ class AppContainer(context: Context) {
         NaudioHttpClient.create()
     }
 
+    // YouTube Music backend (M19). This is the ONLY place the concrete
+    // InnerTube implementation is named; every other module receives the
+    // YtMusicBackend abstraction and cannot see an InnerTube type.
+    private val ytMusicBackend: YtMusicBackend by lazy {
+        InnerTubeYtMusicBackend(networkClient)
+    }
+
     // Providers: registration order = default priority. Online providers
     // augment the catalog. Playback capabilities are registered separately and
     // route by Track.providerId — never by the active metadata provider.
@@ -53,9 +63,7 @@ class AppContainer(context: Context) {
         DefaultMetadataProvider(),
         ItunesMetadataProvider(networkClient),
         LocalMetadataProvider(applicationContext),
-        // Catalog metadata only: no YTM playback provider exists (and none may
-        // be added), so selecting a YTM result safely resolves no source.
-        YtMusicMetadataProvider(networkClient),
+        YtMusicMetadataProvider(ytMusicBackend),
     )
 
     private val playbackProviders = listOf(
@@ -63,6 +71,10 @@ class AppContainer(context: Context) {
         LocalPlaybackProvider(),
         // Resolves the iTunes-served 30 s preview stream for iTunes tracks.
         ItunesPlaybackProvider(networkClient),
+        // Resolves YouTube Music tracks through the backend. The backend returns
+        // null when it cannot legitimately serve an anonymous stream, which the
+        // coordinator surfaces as its normal "source unavailable" state.
+        YtMusicPlaybackProvider(ytMusicBackend),
     )
 
     val providerRegistry = ProviderRegistry(metadataProviders, playbackProviders).apply {

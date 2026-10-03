@@ -1,0 +1,15 @@
+{
+  "contents": {
+    "tabbedSearchResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "content": {
+              "sectionListRenderer": { "contents": [] }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,193 @@
+package com.naudio.provider.innertube.parser
+
+import com.naudio.core.model.Track
+import com.naudio.provider.innertube.api.YtMusicBackend
+import com.naudio.provider.innertube.parser.InnerTubeJson.array
+import com.naudio.provider.innertube.parser.InnerTubeJson.obj
+import com.naudio.provider.innertube.parser.InnerTubeJson.parseDurationMs
+import com.naudio.provider.innertube.parser.InnerTubeJson.str
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+
+/**
+ * Maps InnerTube's music list-item renderers onto domain [Track] values.
+ *
+ * The same track appears in two renderer shapes across the endpoints this
+ * backend uses:
+ *  - [FULL_RENDERER] — search results, album/playlist/artist shelves. Each
+ *    piece of metadata is its own `flexColumn`, so the columns ARE the fields.
+ *  - [COMPACT_RENDERER] — the "related" rail on the watch page. Everything is
+ *    one flat `text.runs` array whose entries are separated by bullet runs:
+ *    `["Title", " • ", "Artist", " • ", "2:34"]`.
+ *
+ * Both are reduced to the same ordered `fields` list by [splitFields] and then
+ * interpreted once, so callers get identical [Track] semantics and there is a
+ * single place where the title/artist/album/duration positions are decided.
+ *
+ * The mapper is total: a renderer without a playable song/video id maps to null
+ * (artists, albums and playlists share the list-item shape but carry no
+ * playable id, so they are filtered out rather than misreported as tracks).
+ *
+ * Every emitted [Track] is stamped with [YtMusicBackend.PROVIDER_ID], so a
+ * track is always routed back to this backend for playback resolution.
+ */
+internal object InnerTubeTrackParser {
+
+    private const val FULL_RENDERER = "musicResponsiveListItemRenderer"
+    private const val COMPACT_RENDERER = "compactMusicResponsiveListItemRenderer"
+    private const val COLUMN_RENDERER = "musicResponsiveListItemFlexColumnRenderer"
+
+    /** The bullet run the web client puts between metadata fields. */
+    private const val FIELD_SEPARATOR = "•"
+
+    /**
+     * Map every song renderer found anywhere under [root], in document order.
+     *
+     * [InnerTubeJson.collectByKey] yields renderer VALUES (the object stored
+     * under the renderer's key), so they are mapped directly by their known
+     * type rather than being pushed back through [parseItem], which expects the
+     * enclosing wrapper.
+     */
+    fun parseAll(root: JsonElement?): List<Track> {
+        val full = InnerTubeJson.collectByKey(root, FULL_RENDERER).mapNotNull { mapFull(it) }
+        // A response that wraps a full renderer inside a compact one would
+        // otherwise emit the track twice.
+        val compact = InnerTubeJson.collectByKey(root, COMPACT_RENDERER)
+            .filterNot { InnerTubeJson.collectByKey(it, FULL_RENDERER).isNotEmpty() }
+            .mapNotNull { mapCompact(it) }
+        return full + compact
+    }
+
+    /** Map the song renderers of a single list container, in document order. */
+    fun parseContents(contents: JsonArray?): List<Track> =
+        contents.orEmpty().mapNotNull { parseItem(it) }
+
+    /**
+     * Map one list-item element — a full or compact renderer, or a (possibly
+     * nested) wrapper containing one of them. Null when the element carries no
+     * playable song id.
+     */
+    fun parseItem(element: JsonElement?, depth: Int = 0): Track? = when (element) {
+        null, is JsonPrimitive -> null
+        is JsonObject ->
+            element.obj(FULL_RENDERER)?.let { mapFull(it) }
+                ?: element.obj(COMPACT_RENDERER)?.let { mapCompact(it) }
+                ?: if (depth < MAX_WRAPPER_DEPTH) {
+                    element.values.firstNotNullOfOrNull { nested -> parseItem(nested, depth + 1) }
+                } else {
+                    null
+                }
+        else -> null
+    }
+
+    /** Map a `musicResponsiveListItemRenderer`: one field per flex column. */
+    private fun mapFull(renderer: JsonObject): Track? {
+        val fields = renderer.array("flexColumns").orEmpty().mapNotNull { column ->
+            val runs = column.obj(COLUMN_RENDERER)?.obj("text")?.array("runs")
+            splitFields(runs).firstOrNull()?.takeIf { it.isNotEmpty() }
+        }
+        return build(renderer, fields)
+    }
+
+    /** Map a `compactMusicResponsiveListItemRenderer`: bullet-separated runs. */
+    private fun mapCompact(renderer: JsonObject): Track? {
+        val fields = splitFields(renderer.obj("text")?.array("runs"))
+        return build(renderer, fields)
+    }
+
+    /**
+     * Reduce a run array to its ordered metadata fields.
+     *
+     * A column's runs carry no separator (one column == one field), and a
+     * compact renderer's runs are separated by bullets, so splitting on the
+     * bullet handles both shapes identically and flattens the columns into one
+     * ordered list.
+     */
+    internal fun splitFields(runs: JsonArray?): List<String> {
+        if (runs == null) return emptyList()
+        val fields = mutableListOf<String>()
+        val current = StringBuilder()
+        for (run in runs) {
+            val text = run.str("text") ?: continue
+            if (text.trim() == FIELD_SEPARATOR) {
+                fields.add(current.toString())
+                current.clear()
+            } else {
+                current.append(text)
+            }
+        }
+        fields.add(current.toString())
+        return fields.map { it.trim() }
+    }
+
+    /**
+     * Shared tail of both shapes: interpret the ordered fields positionally as
+     * title, artist, album, duration — the web client's own layout order.
+     *
+     * The duration is located by VALUE rather than by position, because a
+     * compact rail that lists no album is one field shorter; treating the last
+     * field as an album would put "2:34" in the album slot.
+     */
+    private fun build(renderer: JsonObject, fields: List<String>): Track? {
+        val videoId = extractVideoId(renderer) ?: return null
+        val durationText = fields.lastOrNull()?.takeIf { parseDurationMs(it) != null }
+        val durationIndex = if (durationText == null) -1 else fields.lastIndexOf(durationText)
+        val album = fields.getOrNull(2)?.takeIf { fields.indexOf(it) != durationIndex }
+        return Track(
+            id = videoId,
+            providerId = YtMusicBackend.PROVIDER_ID,
+            title = fields.getOrNull(0)?.takeIf { it.isNotEmpty() } ?: UNKNOWN_TITLE,
+            artist = fields.getOrNull(1)?.takeIf { it.isNotEmpty() } ?: UNKNOWN_ARTIST,
+            album = album?.takeIf { it.isNotEmpty() },
+            artworkUrl = extractArtwork(renderer),
+            durationMs = parseDurationMs(durationText) ?: 0L,
+        )
+    }
+
+    /**
+     * The playable song id. The explicit `playlistItemData.videoId` is
+     * preferred; the `watchEndpoint` navigation target is the fallback used by
+     * shelves that omit it.
+     */
+    private fun extractVideoId(renderer: JsonObject): String? =
+        renderer.obj("playlistItemData")?.str("videoId")
+            ?: renderer.obj("navigationEndpoint")?.obj("watchEndpoint")?.str("videoId")
+            ?: renderer.obj("overlay")?.obj("musicItemThumbnailOverlayRenderer")
+                ?.obj("content")?.obj("musicPlayButtonRenderer")
+                ?.str("playNavigationEndpoint")
+                ?.let { watchId(it) }
+            ?: renderer.obj("onTap")?.obj("watchEndpoint")?.str("videoId")
+
+    /**
+     * `watchEndpoint` values occasionally arrive as a `{"watchEndpoint": …}`
+     * JSON fragment embedded in a string field. Pulling one literal id out of
+     * that fragment is plain field extraction, not deprotection — it carries no
+     * signature and no stream URL.
+     */
+    private fun watchId(raw: String): String? =
+        VIDEO_ID_IN_FRAGMENT.find(raw)?.groupValues?.getOrNull(1)
+
+    /**
+     * Largest thumbnail the renderer carries. The web client ships two shapes:
+     * a direct `thumbnail` array of sized entries, or the older nested
+     * `thumbnails` array.
+     */
+    private fun extractArtwork(renderer: JsonObject): String? {
+        val thumb = renderer.obj("thumbnail")?.obj("musicThumbnailRenderer") ?: return null
+        val entries = thumb.array("thumbnail")
+            ?: thumb.obj("thumbnail")?.array("thumbnails")
+            ?: return null
+        val last = entries.lastOrNull() ?: return null
+        return last.obj("musicThumbnailRendererDTO_thumbnail")?.str("url") ?: last.str("url")
+    }
+
+    private val VIDEO_ID_IN_FRAGMENT = Regex("\"videoId\"\\s*:\\s*\"([^\"]+)\"")
+
+/** Bound on wrapper unwrapping, so a pathological payload stays bounded. */
+private const val MAX_WRAPPER_DEPTH = 4
+
+    private const val UNKNOWN_TITLE = "Unknown title"
+    private const val UNKNOWN_ARTIST = "Unknown artist"
+}

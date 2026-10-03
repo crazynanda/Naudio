@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlinx.serialization)
 }
 
 android {
@@ -30,17 +29,22 @@ kotlin {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":provider:api"))
-    implementation(project(":core:network"))
-    // The constructor takes the shared HttpClient; :core:network does not leak
-    // its Ktor dependencies, so the client API is declared here too (same as
-    // the iTunes provider).
-    implementation(libs.ktor.client.core)
-    // Used for JsonObject traversal of the InnerTube response; :core:network
-    // keeps its kotlinx-serialization dependency internal, so re-declared here.
-    implementation(libs.kotlinx.serialization.json)
+
+    // The YtMusicBackend abstraction. This module talks ONLY to this
+    // dependency: it no longer declares Ktor or kotlinx-serialization, because
+    // it no longer performs a network call or parses a response. The concrete
+    // InnerTube implementation lives behind it.
+    implementation(project(":provider:innertube"))
+
+    // Only the tests need the network taxonomy, to assert that backend failures
+    // reach the providers unchanged.
+    testImplementation(project(":core:network"))
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlinx.coroutines.test)
+    // The integration tests drive the REAL InnerTube backend against a canned
+    // MockEngine, so they exercise the actual client/request/parser stack.
     testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.ktor.client.core)
 }

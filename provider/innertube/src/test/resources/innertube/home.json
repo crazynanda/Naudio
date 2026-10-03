@@ -1,0 +1,54 @@
+{
+  "contents": {
+    "singleColumnBrowseResultsRenderer": {
+      "tabs": [
+        {
+          "tabRenderer": {
+            "content": {
+              "sectionListRenderer": {
+                "contents": [
+                  {
+                    "musicShelfRenderer": {
+                      "title": { "text": { "runs": [ { "text": "Listen again" } ] } },
+                      "contents": [
+                        {
+                          "musicResponsiveListItemRenderer": {
+                            "playlistItemData": { "videoId": "dQw4w9WgXcQ" },
+                            "flexColumns": [
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Never Gonna Give You Up" } ] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Rick Astley" } ] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Whenever You Need Somebody" } ] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "3:33" } ] } } }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "musicShelfRenderer": {
+                      "title": { "text": { "runs": [ { "text": "New releases" } ] } },
+                      "contents": [
+                        {
+                          "musicResponsiveListItemRenderer": {
+                            "playlistItemData": { "videoId": "yPYZpwSpKmA" },
+                            "flexColumns": [
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Together Forever" } ] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Rick Astley" } ] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "Whenever You Need Somebody" } ] } } },
+                              { "musicResponsiveListItemFlexColumnRenderer": { "text": { "runs": [ { "text": "3:25" } ] } } }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

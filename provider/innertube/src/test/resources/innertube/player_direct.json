@@ -1,0 +1,33 @@
+{
+  "playabilityStatus": {
+    "status": "OK",
+    "reason": "Playable",
+    "contextParams": "CAEQARgB"
+  },
+  "streamingData": {
+    "expiresInSeconds": "21540",
+    "adaptiveFormats": [
+      {
+        "itag": 251,
+        "mimeType": "audio/webm; codecs=\"opus\"",
+        "bitrate": 133499,
+        "averageBitrate": 113337,
+        "url": "https://rr3---sn-direct-audio.example/webm-opus"
+      },
+      {
+        "itag": 140,
+        "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
+        "bitrate": 130103,
+        "averageBitrate": 129999,
+        "url": "https://rr3---sn-direct-audio.example/mp4-m4a"
+      },
+      {
+        "itag": 248,
+        "mimeType": "video/webm; codecs=\"vp9\"",
+        "bitrate": 133499,
+        "averageBitrate": 113337,
+        "url": "https://rr3---sn-direct-video.example/webm-vp9"
+      }
+    ]
+  }
+}

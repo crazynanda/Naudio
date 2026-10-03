@@ -43,6 +43,10 @@ dependencies {
     implementation(project(":data"))
     implementation(project(":provider:api"))
     implementation(project(":provider:default"))
+    // The InnerTube-backed implementation of YtMusicBackend. app wires the
+    // concrete backend into the YTM provider; every other module sees only the
+    // YtMusicBackend abstraction.
+    implementation(project(":provider:innertube"))
     implementation(project(":provider:itunes"))
     implementation(project(":provider:local"))
     implementation(project(":provider:ytmusic"))
