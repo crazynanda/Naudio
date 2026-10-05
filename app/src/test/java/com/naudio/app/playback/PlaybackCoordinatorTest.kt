@@ -247,13 +247,16 @@ class PlaybackCoordinatorTest {
     // ------------------------------------------------------------------
 
     @Test
-    fun `user selection of an unplayable YTM track surfaces unavailable and does not load`() {
+    fun `user selection of an unplayable YTM track reports the queue as unplayable`() {
         coordinator.setQueue(listOf(ytmB), startIndex = 0)
         advanceUntilIdle()
 
-        assertEquals(PlaybackError.UNAVAILABLE, coordinator.state.value.error)
+        // M20: a single-item queue that cannot play is the terminal case, not a
+        // per-item skip — there is nothing left to skip to.
+        assertEquals(PlaybackError.QUEUE_UNPLAYABLE, coordinator.state.value.error)
         assertNull(controller.loadedTrack)
         assertEquals(0, coordinator.state.value.currentIndex)
+        // The queue still points at the item so the UI can show/favorite it.
         assertEquals(ytmB, coordinator.state.value.currentTrack)
     }
 
@@ -281,15 +284,20 @@ class PlaybackCoordinatorTest {
     }
 
     @Test
-    fun `all remaining items unplayable stops the queue safely`() {
+    fun `all remaining items unplayable stops the player and reports a terminal error`() {
         coordinator.setQueue(listOf(localA, ytmB), startIndex = 0)
         advanceUntilIdle()
         controller.emitStatus(PlaybackStatus.ENDED)
         advanceUntilIdle()
 
+        // M20: A ends, B has no source — the run exhausts the queue, so the
+        // player is stopped (no stale A still playing/advertised) and the
+        // failure is terminal rather than a one-off skip note.
         assertEquals(1, controller.loadCount)
-        assertEquals(localA, controller.loadedTrack)
-        assertEquals(PlaybackError.UNAVAILABLE, coordinator.state.value.error)
+        assertEquals(1, controller.stopCalls)
+        assertNull(controller.loadedTrack)
+        assertNull(controller.state.value.track)
+        assertEquals(PlaybackError.QUEUE_UNPLAYABLE, coordinator.state.value.error)
         // Settled (not advanced past) position is persisted.
         assertEquals(1, queueDao.state.value?.currentIndex)
     }

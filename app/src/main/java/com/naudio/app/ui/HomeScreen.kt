@@ -371,10 +371,22 @@ private fun ResultsList(
     }
 }
 
-/** User-facing text for a playback error. */
+/**
+ * User-facing text for a playback error.
+ *
+ * Deliberately describes only what Naudio observed — that its own providers did
+ * not return a playable source — and never asserts that a particular service
+ * blocked the user. The wording follows the existing snackbar channel used by
+ * Home and Library; no new notification mechanism is introduced.
+ */
 fun PlaybackError.message(): String = when (this) {
     PlaybackError.UNAVAILABLE -> "Playback isn't available for this item."
     PlaybackError.UNRESOLVABLE -> "Couldn't play this item — check your connection and try again."
+    // Terminal (M20): the whole queue was walked and nothing could play, so
+    // playback stopped. Naming the queue rather than a single item is the point
+    // — it is what makes an exhausted, unplayable queue understandable instead
+    // of looking like playback just quietly stopped.
+    PlaybackError.QUEUE_UNPLAYABLE -> "Unable to play queued tracks."
 }
 
 @Composable

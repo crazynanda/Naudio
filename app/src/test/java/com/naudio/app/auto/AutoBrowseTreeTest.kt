@@ -141,8 +141,13 @@ class AutoBrowseTreeTest {
         )
 }
 
-/** Minimal in-memory TrackDao for browse-tree tests. */
-private class AutoTreeFakeTrackDao : TrackDao {
+/**
+ * Minimal in-memory TrackDao for browse-tree tests.
+ *
+ * M20 reuses it from [AutoPlaybackGatewayTest], which needs the same
+ * favorites/playlists/history repositories to build a real [AutoPlaybackGateway].
+ */
+internal class AutoTreeFakeTrackDao : TrackDao {
     val rows = linkedMapOf<Pair<String, String>, TrackEntity>()
     private val state = MutableStateFlow<List<TrackEntity>>(emptyList())
 
@@ -168,8 +173,8 @@ private class AutoTreeFakeTrackDao : TrackDao {
     }
 }
 
-/** Minimal in-memory HistoryDao mirroring the Room append-only semantics. */
-private class AutoTreeFakeHistoryDao : HistoryDao {
+/** Minimal in-memory HistoryDao mirroring the Room append-only semantics. M20 reuses it. */
+internal class AutoTreeFakeHistoryDao : HistoryDao {
 
     val rows = mutableListOf<HistoryEntity>()
     private val state = MutableStateFlow<List<HistoryEntity>>(emptyList())
@@ -201,7 +206,8 @@ private class AutoTreeFakeHistoryDao : HistoryDao {
     override suspend fun count(): Int = rows.size
 }
 
-/** Minimal in-memory PlaylistDao mirroring the Room semantics. */private class AutoTreeFakePlaylistDao(
+/** Minimal in-memory PlaylistDao mirroring the Room semantics. M20 reuses it. */
+internal class AutoTreeFakePlaylistDao(
     private val trackDao: AutoTreeFakeTrackDao,
 ) : PlaylistDao {
     val playlists = mutableListOf<PlaylistEntity>()

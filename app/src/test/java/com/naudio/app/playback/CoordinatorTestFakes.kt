@@ -135,6 +135,7 @@ internal class FakePlaybackController : PlaybackController {
     var loadCount = 0
     var playCalls = 0
     var pauseCalls = 0
+    var stopCalls = 0
     var seekPositions = mutableListOf<Long>()
 
     // M16: playback modes. The fake mirrors the real controller's contract:
@@ -167,7 +168,17 @@ internal class FakePlaybackController : PlaybackController {
     override fun pause() {
         pauseCalls++
     }
-    override fun stop() {}
+    /**
+     * Mirrors the real controller: stopping releases the loaded media, so both
+     * [loadedTrack] and the observable [state] return to idle. A no-op stop()
+     * would hide exactly the M20 bug this double exists to catch — a queue that
+     * cannot play leaving a stale item loaded and advertised to Android Auto.
+     */
+    override fun stop() {
+        stopCalls++
+        loadedTrack = null
+        _state.value = PlayerState()
+    }
     override fun seekTo(positionMs: Long) {
         seekPositions.add(positionMs)
     }

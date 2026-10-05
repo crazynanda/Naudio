@@ -240,11 +240,12 @@ class PlaybackViewModelTest {
     // ------------------------------------------------------------------
 
     @Test
-    fun `user selection of an unplayable YTM track surfaces unavailable and does not load`() {
+    fun `user selection of an unplayable YTM track reports the queue as unplayable`() {
         viewModel.onTrackSelected(ytmB)
         advanceUntilIdle()
 
-        assertEquals(PlaybackError.UNAVAILABLE, viewModel.playbackError.value)
+        // M20: terminal, because a one-item queue has nothing left to skip to.
+        assertEquals(PlaybackError.QUEUE_UNPLAYABLE, viewModel.playbackError.value)
         assertNull(controller.loadedTrack)
     }
 
@@ -276,22 +277,25 @@ class PlaybackViewModelTest {
         viewModel.onTrackSelected(ytmB)
         advanceUntilIdle()
 
-        assertEquals(PlaybackError.UNAVAILABLE, viewModel.playbackError.value)
+        assertEquals(PlaybackError.QUEUE_UNPLAYABLE, viewModel.playbackError.value)
         assertNull(controller.loadedTrack)
         assertEquals(0, viewModel.uiState.value.currentIndex)
         assertEquals(ytmB, viewModel.uiState.value.currentTrack)
     }
 
     @Test
-    fun `all remaining items unplayable stops the queue safely`() {
+    fun `all remaining items unplayable stops the player and reports a terminal error`() {
         viewModel.setQueue(listOf(localA, ytmB), startIndex = 0)
         advanceUntilIdle()
         controller.emitStatus(PlaybackStatus.ENDED)
         advanceUntilIdle()
 
+        // M20: the exhausted run stops the player so nothing stale is left
+        // loaded or advertised, and reports a terminal (not per-item) error.
         assertEquals(1, controller.loadCount)
-        assertEquals(localA, controller.loadedTrack)
-        assertEquals(PlaybackError.UNAVAILABLE, viewModel.playbackError.value)
+        assertEquals(1, controller.stopCalls)
+        assertNull(controller.loadedTrack)
+        assertEquals(PlaybackError.QUEUE_UNPLAYABLE, viewModel.playbackError.value)
     }
 
     @Test

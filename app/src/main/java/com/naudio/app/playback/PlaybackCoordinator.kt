@@ -54,6 +54,27 @@ data class PlaybackQueueState(
  * [QueueRepository.replaceQueue] path so rapid mutations cannot leave Room
  * with a stale queue/index combination.
  *
+ * ## Why an unplayable item is skipped, not "fixed" (M20)
+ *
+ * [LibraryRepository.resolveSource] returning null is a legitimate, final
+ * answer from the playback-provider chain — "this provider cannot play this
+ * track" — and Naudio treats it as such. The coordinator's job is to move past
+ * such an item and keep the queue playing, never to retry it against a
+ * different or more capable mechanism. In particular, when a provider declines
+ * to hand over a playable source because the source is protected, the correct
+ * response is to skip the item and tell the user, not to escalate. That is a
+ * provider CAPABILITY BOUNDARY, and it deliberately lives behind
+ * `provider/api`'s `PlaybackProvider`, not here.
+ *
+ * ## Terminal vs. per-item failure (M20)
+ *
+ * A run that skips some items and finds a playable one surfaces
+ * [PlaybackError.UNAVAILABLE] once (the skip note) and keeps playing. A run
+ * that reaches the end of the queue with nothing playable is a different
+ * outcome: it surfaces [PlaybackError.QUEUE_UNPLAYABLE] and STOPS the player,
+ * so the mobile UI and the Android Auto MediaSession never keep advertising a
+ * stale media item while the visible queue points at an unplayable track.
+ *
  * All work runs on the injected [scope] (the owning ViewModel's scope); Media3
  * is only ever touched through [PlaybackController].
  */
@@ -254,8 +275,14 @@ class PlaybackCoordinator(
     }
 
     /**
-     * Stop playback after the queue was emptied. The controller returns to
-     * idle; nothing is resolved or loaded (and nothing can auto-advance).
+     * Stop playback after the queue was emptied, or after a resolution run
+     * found nothing playable (M20). The controller returns to idle and this
+     * session's auto-advance gate closes; nothing is resolved or loaded, so
+     * nothing can resurrect playback on its own.
+     *
+     * The queue, its position and the persisted position are deliberately left
+     * intact: the UI can still show (and favorite) the track the queue points
+     * at, and pressing Play simply starts a fresh resolution run.
      */
     private fun stopPlayback() {
         hasLoadedMedia = false
@@ -278,8 +305,10 @@ class PlaybackCoordinator(
 
     /**
      * Resume playback of the current item. If the player has no media loaded
-     * (the restored-queue case, or nothing ever played), the current item is
-     * resolved and loaded first; otherwise this is a plain resume.
+     * (the restored-queue case, nothing ever played, or M20's terminal stop),
+     * the current item is resolved and loaded first; otherwise this is a plain
+     * resume. This makes a terminal [PlaybackError.QUEUE_UNPLAYABLE] retryable
+     * without any new mechanism.
      */
     private fun resumeOrPlay() {
         val current = _state.value.currentTrack
@@ -310,7 +339,8 @@ class PlaybackCoordinator(
         if (next !in queue.indices) {
             // Boundary (skip at the end, ENDED past the last item): keep the
             // position on the final item — the player's ENDED status conveys
-            // completion, and the track stays visible/favoritable.
+            // completion, and the track stays visible/favoritable. Reaching the
+            // end of a queue is a normal end, not a failure, so no error here.
             return
         }
         resolveJob?.cancel()
@@ -337,9 +367,17 @@ class PlaybackCoordinator(
 
     /**
      * Resolve the track at the current index and load it. Unresolvable items
-     * (metadata-only providers, network failures) are skipped forward; the
-     * skip is surfaced once, not per item, to avoid snackbar spam. If no
-     * playable item remains the queue stops gracefully.
+     * (metadata-only providers, providers that cannot supply a playable source,
+     * network failures) are skipped forward; the skip is surfaced once, not per
+     * item, to avoid snackbar spam.
+     *
+     * Two outcomes:
+     *  - a playable item is found → it is loaded, and any accumulated skip note
+     *    is surfaced once alongside it (M9/M20 Cases A and B);
+     *  - the queue is exhausted with nothing playable → this is a terminal
+     *    outcome: [PlaybackError.QUEUE_UNPLAYABLE] is surfaced and the player is
+     *    stopped so neither the mobile UI nor the Android Auto MediaSession is
+     *    left showing a stale item (M20 Case C).
      */
     private fun startLoadAtCurrentIndex() {
         val queue = _state.value.queue
@@ -369,12 +407,22 @@ class PlaybackCoordinator(
                 }
                 skipError = PlaybackError.UNAVAILABLE
             }
-            // Every remaining item was unplayable: stop gracefully and
-            // surface the failure exactly once, never loop. The index stays on
-            // the unplayable item so the UI can still show it (and, e.g.,
-            // favorite it) — no further advance happens without a new ENDED or
-            // an explicit user skip.
-            _state.update { it.copy(error = skipError ?: PlaybackError.UNAVAILABLE) }
+            // M20: every remaining item was unplayable. This is terminal for
+            // the run and is deliberately reported as QUEUE_UNPLAYABLE rather
+            // than the per-item UNAVAILABLE, so "we skipped one track" and
+            // "nothing here can play" are never reported identically.
+            //
+            // Stopping the player (not merely leaving it alone) is what keeps
+            // Media3/Android Auto unambiguous: without it a previously loaded
+            // item would keep playing while the visible queue pointed at an
+            // unplayable track. stopPlayback() also closes the auto-advance
+            // gate, so no stray ENDED or repeat loop can restart the queue.
+            //
+            // The settled (not advanced-past) index is persisted and kept, so
+            // the UI can still show and favorite the unplayable item, and a
+            // later Play press re-runs resolution from it.
+            stopPlayback()
+            _state.update { it.copy(error = PlaybackError.QUEUE_UNPLAYABLE) }
             persistSettledIndex(settledIndex)
         }
     }
