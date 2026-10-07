@@ -58,6 +58,18 @@ class ProviderRegistry(
     fun playbackProvider(id: ProviderId): PlaybackProvider? =
         playbackProvidersById[id]
 
+    /**
+     * Resolve the metadata provider registered under [id], or null if not
+     * registered (M21).
+     *
+     * Exact-match only, for the same reason [playbackProvider] is: catalog
+     * detail must be served by the provider that owns the catalog entity, never
+     * by whichever provider happens to be active. Asking the active provider for
+     * an id it does not own would either fail or, worse, be answered by a
+     * different catalog's entity with a colliding id.
+     */
+    fun metadataProvider(id: ProviderId): MetadataProvider? = providersById[id]
+
     /** All registered metadata providers in registration order. */
     fun all(): List<MetadataProvider> = registered.toList()
 

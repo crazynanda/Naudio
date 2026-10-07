@@ -1,6 +1,8 @@
 package com.naudio.data.repository
 
+import com.naudio.core.model.AlbumDetail
 import com.naudio.core.model.AudioSource
+import com.naudio.core.model.ArtistDetail
 import com.naudio.core.model.Track
 import com.naudio.data.provider.ProviderRegistry
 import com.naudio.provider.api.MetadataProvider
@@ -63,4 +65,27 @@ class LibraryRepository(
      */
     suspend fun resolveSource(track: Track): AudioSource? =
         registry.playbackProvider(ProviderId(track.providerId))?.resolve(track)
+
+    /**
+     * Resolve one artist page through the metadata provider that owns [providerId]
+     * (M21).
+     *
+     * Routing is by [providerId] only — never by the active provider — because a
+     * catalog entity belongs to exactly one provider and only that provider knows
+     * its own identifier scheme. A provider that does not implement catalog
+     * detail (the [MetadataProvider] default) or is not registered at all yields
+     * null, which is a normal "not available", not a failure.
+     *
+     * Never throws for "unavailable"; transport failures propagate, exactly as
+     * for [resolveSource].
+     */
+    suspend fun artist(providerId: String, artistId: String): ArtistDetail? =
+        registry.metadataProvider(ProviderId(providerId))?.getArtist(artistId)
+
+    /**
+     * Resolve one album page through the metadata provider that owns [providerId]
+     * (M21). Same routing and failure semantics as [artist].
+     */
+    suspend fun album(providerId: String, albumId: String): AlbumDetail? =
+        registry.metadataProvider(ProviderId(providerId))?.getAlbum(albumId)
 }

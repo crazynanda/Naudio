@@ -62,10 +62,118 @@ class InnerTubeBrowseParserTest {
         val album = artist.albums.single()
         assertEquals("MPREb_AlbumOne", album.id)
         assertEquals("Whenever You Need Somebody", album.title)
-        assertEquals("1989", album.artist)
         assertEquals("https://lh3.googleusercontent.com/album-w544", album.artworkUrl)
+        // This older response links no performer, so there is no artist to report:
+        // its only subtitle is the year, which is what it is, not who made it.
+        assertNull(album.artist)
+        assertEquals("1989", album.year)
         // The songs shelf must not have absorbed the release cards.
         assertEquals(1, artist.tracks.size)
+    }
+
+    // ------------------------------------------------------------------
+    // Artist, as the live response actually ships it
+    //
+    // artist_immersive.json reproduces the current shape end to end: an
+    // `musicImmersiveHeaderRenderer` header, a bio in its own description block,
+    // songs in a music shelf, and releases in CAROUSELs. These are the exact
+    // three things a header-blind, shelf-only parser silently loses — the artist
+    // rendered as "Unknown" with placeholder artwork, and no discography at all,
+    // while the songs still loaded. Ids are the real ones YT Music publishes for
+    // Oasis, not invented ones.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `the artist name and artwork come from the immersive header`() {
+        val artist = InnerTubeBrowseParser.parseArtist(
+            "UCmMUZbaYdNH0bEd1PAlAqsA",
+            Fixtures.load("artist_immersive.json"),
+        )
+
+        assertEquals("Oasis", artist.name)
+        assertEquals("https://yt3.googleusercontent.com/oasis-w544-h544", artist.artworkUrl)
+        // The id the caller asked for is echoed back, never one from the response.
+        assertEquals("UCmMUZbaYdNH0bEd1PAlAqsA", artist.id)
+    }
+
+    @Test
+    fun `the artist bio is read from its description block`() {
+        val artist = InnerTubeBrowseParser.parseArtist(
+            "UCmMUZbaYdNH0bEd1PAlAqsA",
+            Fixtures.load("artist_immersive.json"),
+        )
+
+        assertEquals(
+            "Oasis were an English rock band formed in Manchester in 1991.",
+            artist.description,
+        )
+    }
+
+    @Test
+    fun `release carousels are mapped onto album summaries with their own fields`() {
+        val artist = InnerTubeBrowseParser.parseArtist(
+            "UCmMUZbaYdNH0bEd1PAlAqsA",
+            Fixtures.load("artist_immersive.json"),
+        )
+
+        assertEquals(
+            listOf("MPREb_9nqEki4ZDpp", "MPREb_4lE1N1bVd0O", "MPREb_7MPKLhibN5G"),
+            artist.albums.map { it.id },
+        )
+        val album = artist.albums.first()
+        assertEquals("(What's The Story) Morning Glory? (Remastered)", album.title)
+        // The performer is the run the response LINKS; the leading "Album" run is
+        // the release type and must not be reported as the artist.
+        assertEquals("Oasis", album.artist)
+        assertEquals("1995", album.year)
+        assertEquals(
+            "https://lh3.googleusercontent.com/morning-glory-w544-h544",
+            album.artworkUrl,
+        )
+    }
+
+    @Test
+    fun `a related artist card is never reported as an album`() {
+        // The "Related" carousel holds a channel id and the same two-row shape an
+        // album has. Taking it would put a channel on the album destination.
+        val artist = InnerTubeBrowseParser.parseArtist(
+            "UCmMUZbaYdNH0bEd1PAlAqsA",
+            Fixtures.load("artist_immersive.json"),
+        )
+
+        assertTrue(artist.albums.none { it.id == "UCt2KxZpY5D__kapeQ8cauQw" })
+        assertTrue(artist.albums.none { it.title == "The Verve" })
+    }
+
+    @Test
+    fun `the immersive page keeps its songs and cursor while gaining releases`() {
+        val artist = InnerTubeBrowseParser.parseArtist(
+            "UCmMUZbaYdNH0bEd1PAlAqsA",
+            Fixtures.load("artist_immersive.json"),
+        )
+
+        assertEquals(
+            listOf("ZrOKjDZOtkA", "3omcFPV38hQ"),
+            artist.tracks.map { it.id },
+        )
+        assertEquals("ARTIST-PAGE-1", artist.continuation)
+        // Release cards are not tracks, however they are laid out.
+        assertEquals(2, artist.tracks.size)
+    }
+
+    @Test
+    fun `an immersive header with no releases still reports the artist`() {
+        val artist = InnerTubeBrowseParser.parseArtist(
+            "UCmMUZbaYdNH0bEd1PAlAqsA",
+            """
+            {"header":{"musicImmersiveHeaderRenderer":{"title":{"runs":[{"text":"Oasis"}]}}},
+             "contents":{}}
+            """,
+        )
+
+        assertEquals("Oasis", artist.name)
+        assertTrue(artist.albums.isEmpty())
+        assertNull(artist.artworkUrl)
     }
 
     @Test

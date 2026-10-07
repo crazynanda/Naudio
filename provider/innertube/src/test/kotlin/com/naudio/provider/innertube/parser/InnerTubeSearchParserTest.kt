@@ -87,4 +87,21 @@ class InnerTubeSearchParserTest {
     fun `invalid json fails as malformed`() {
         assertFailsWith<SerializationException> { InnerTubeSearchParser.parse("{not json") }
     }
+
+    @Test
+    fun `catalog ids survive the whole response to track mapping`() {
+        // The end-to-end hop the artist entry point depends on: a search RESPONSE
+        // arrives, and each track comes out of the parser carrying the provider's
+        // own ids — never one derived from the displayed names.
+        val page = InnerTubeSearchParser.parse(Fixtures.load("search_page_catalog_ids.json"))
+
+        assertEquals(3, page.items.size)
+        val linked = page.items.first { it.id == "ZrOKjDZOtkA" }
+        assertEquals("UCmMUZbaYdNH0bEd1PAlAqsA", linked.artistId)
+        assertEquals("MPREb_9nqEki4ZDpp", linked.albumId)
+
+        // Every id came from the response, so the pair is always resolvable back
+        // to the one provider that issued it.
+        assertTrue(page.items.all { it.providerId == "ytmusic" })
+    }
 }

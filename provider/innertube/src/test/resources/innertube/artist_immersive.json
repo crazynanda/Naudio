@@ -1,0 +1,528 @@
+{
+ "header": {
+  "musicImmersiveHeaderRenderer": {
+   "title": {
+    "runs": [
+     {
+      "text": "Oasis"
+     }
+    ]
+   },
+   "straplineTextOne": {
+    "runs": [
+     {
+      "text": "3.86M subscribers"
+     }
+    ]
+   },
+   "thumbnail": {
+    "musicThumbnailRenderer": {
+     "thumbnail": {
+      "thumbnails": [
+       {
+        "url": "https://yt3.googleusercontent.com/oasis-w544-h544",
+        "width": 544,
+        "height": 544
+       }
+      ]
+     }
+    }
+   },
+   "playButton": {
+    "buttonRenderer": {
+     "navigationEndpoint": {
+      "watchPlaylistEndpoint": {
+       "playlistId": "RDAOkjHYJjL1a3xspEyVkhHAsg"
+      }
+     }
+    }
+   },
+   "subscriptionButton": {
+    "subscribeButtonRenderer": {
+     "channelId": "UCmMUZbaYdNH0bEd1PAlAqsA",
+     "subscribed": false,
+     "subscriberCountText": {
+      "runs": [
+       {
+        "text": "3.86M subscribers"
+       }
+      ]
+     }
+    }
+   },
+   "monthlyListenerCount": {
+    "runs": [
+     {
+      "text": "29.1M monthly audience"
+     }
+    ]
+   }
+  }
+ },
+ "contents": {
+  "twoColumnBrowseResultsRenderer": {
+   "tabs": [
+    {
+     "tabRenderer": {
+      "content": {
+       "sectionListRenderer": {
+        "contents": [
+         {
+          "musicDescriptionShelfRenderer": {
+           "description": {
+            "runs": [
+             {
+              "text": "Oasis were an English rock band formed in Manchester in 1991."
+             }
+            ]
+           }
+          }
+         },
+         {
+          "musicShelfRenderer": {
+           "title": {
+            "text": {
+             "runs": [
+              {
+               "text": "Songs"
+              }
+             ]
+            }
+           },
+           "contents": [
+            {
+             "musicResponsiveListItemRenderer": {
+              "playlistItemData": {
+               "videoId": "ZrOKjDZOtkA"
+              },
+              "flexColumns": [
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Wonderwall (Remastered)"
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Oasis",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "UCmMUZbaYdNH0bEd1PAlAqsA"
+                     }
+                    }
+                   },
+                   {
+                    "text": " \u2022 "
+                   },
+                   {
+                    "text": "Album"
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "(What's The Story) Morning Glory? (Remastered)",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "MPREb_9nqEki4ZDpp"
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "4:19"
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "thumbnail": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://lh3.googleusercontent.com/ZrOKjDZOtkA-w544-h544",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              }
+             }
+            },
+            {
+             "musicResponsiveListItemRenderer": {
+              "playlistItemData": {
+               "videoId": "3omcFPV38hQ"
+              },
+              "flexColumns": [
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Don't Look Back in Anger (Remastered)"
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Oasis",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "UCmMUZbaYdNH0bEd1PAlAqsA"
+                     }
+                    }
+                   },
+                   {
+                    "text": " \u2022 "
+                   },
+                   {
+                    "text": "Album"
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "(What's The Story) Morning Glory? (Remastered)",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "MPREb_9nqEki4ZDpp"
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "5:48"
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "thumbnail": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://lh3.googleusercontent.com/3omcFPV38hQ-w544-h544",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              }
+             }
+            }
+           ],
+           "continuations": [
+            {
+             "nextContinuationData": {
+              "continuation": "ARTIST-PAGE-1"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "musicCarouselShelfRenderer": {
+           "header": {
+            "musicCarouselShelfBasicHeaderRenderer": {
+             "title": {
+              "runs": [
+               {
+                "text": "Albums"
+               }
+              ]
+             }
+            }
+           },
+           "contents": [
+            {
+             "musicTwoRowItemRenderer": {
+              "title": {
+               "runs": [
+                {
+                 "text": "(What's The Story) Morning Glory? (Remastered)",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "MPREb_9nqEki4ZDpp",
+                   "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                     "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "Album"
+                },
+                {
+                 "text": " \u2022 "
+                },
+                {
+                 "text": "Oasis",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "UCmMUZbaYdNH0bEd1PAlAqsA"
+                  }
+                 }
+                },
+                {
+                 "text": " \u2022 "
+                },
+                {
+                 "text": "1995"
+                }
+               ]
+              },
+              "thumbnailRenderer": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://lh3.googleusercontent.com/morning-glory-w544-h544",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              }
+             }
+            },
+            {
+             "musicTwoRowItemRenderer": {
+              "title": {
+               "runs": [
+                {
+                 "text": "Be Here Now (Remastered)",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "MPREb_4lE1N1bVd0O",
+                   "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                     "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "Album"
+                },
+                {
+                 "text": " \u2022 "
+                },
+                {
+                 "text": "Oasis",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "UCmMUZbaYdNH0bEd1PAlAqsA"
+                  }
+                 }
+                },
+                {
+                 "text": " \u2022 "
+                },
+                {
+                 "text": "1997"
+                }
+               ]
+              },
+              "thumbnailRenderer": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://lh3.googleusercontent.com/be-here-now-w544-h544",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         {
+          "musicCarouselShelfRenderer": {
+           "header": {
+            "musicCarouselShelfBasicHeaderRenderer": {
+             "title": {
+              "runs": [
+               {
+                "text": "Singles"
+               }
+              ]
+             }
+            }
+           },
+           "contents": [
+            {
+             "musicTwoRowItemRenderer": {
+              "title": {
+               "runs": [
+                {
+                 "text": "Stand By Me (Mustique Demo)",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "MPREb_7MPKLhibN5G",
+                   "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                     "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "Single"
+                },
+                {
+                 "text": " \u2022 "
+                },
+                {
+                 "text": "Oasis",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "UCmMUZbaYdNH0bEd1PAlAqsA"
+                  }
+                 }
+                },
+                {
+                 "text": " \u2022 "
+                },
+                {
+                 "text": "2016"
+                }
+               ]
+              },
+              "thumbnailRenderer": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://lh3.googleusercontent.com/stand-by-me-w544-h544",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         {
+          "musicCarouselShelfRenderer": {
+           "header": {
+            "musicCarouselShelfBasicHeaderRenderer": {
+             "title": {
+              "runs": [
+               {
+                "text": "Related"
+               }
+              ]
+             }
+            }
+           },
+           "contents": [
+            {
+             "musicTwoRowItemRenderer": {
+              "title": {
+               "runs": [
+                {
+                 "text": "The Verve",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "UCt2KxZpY5D__kapeQ8cauQw",
+                   "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                     "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "450K subscribers"
+                }
+               ]
+              }
+             }
+            }
+           ]
+          }
+         }
+        ]
+       }
+      }
+     }
+    }
+   ]
+  }
+ }
+}

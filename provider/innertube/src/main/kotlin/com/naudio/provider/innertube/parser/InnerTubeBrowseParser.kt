@@ -9,6 +9,7 @@ import com.naudio.provider.innertube.parser.InnerTubeJson.array
 import com.naudio.provider.innertube.parser.InnerTubeJson.firstObj
 import com.naudio.provider.innertube.parser.InnerTubeJson.obj
 import com.naudio.provider.innertube.parser.InnerTubeJson.str
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -26,8 +27,19 @@ import kotlinx.serialization.json.JsonObject
  */
 internal object InnerTubeBrowseParser {
 
-    /** Header renderers that may carry a page's identity, in priority order. */
+    /**
+     * Header renderers that may carry a page's identity, in priority order.
+     *
+     * `musicImmersiveHeaderRenderer` is the ARTIST page's header and is listed
+     * first: when it is the only header present it must win, and it cannot
+     * shadow an album or playlist header because those surfaces ship no
+     * immersive header at all. Leaving it out (as this parser once did) is not a
+     * degradation but a total loss of identity — a page whose header went
+     * unread rendered every artist as "Unknown" with placeholder artwork while
+     * its songs still loaded, because songs come from a different subtree.
+     */
     private val HEADER_RENDERERS = listOf(
+        "musicImmersiveHeaderRenderer",
         "musicResponsiveHeaderRenderer",
         "musicDetailHeaderRenderer",
         "musicVisualHeaderRenderer",
@@ -35,6 +47,22 @@ internal object InnerTubeBrowseParser {
 
     /** Two-row (album / single) item renderer, used for an artist's releases. */
     private const val TWO_ROW_ITEM = "musicTwoRowItemRenderer"
+
+    /** An artist page's bio block, which no longer lives in the header. */
+    private const val DESCRIPTION_SHELF = "musicDescriptionShelfRenderer"
+
+    /**
+     * The page types a link may declare for itself that mean "this is a release".
+     *
+     * Read from the response, never inferred: an artist page's release carousels
+     * also hold songs, videos, playlists and OTHER ARTISTS as two-row cards, and
+     * only the declared page type says which is which. A related artist must not
+     * be reported as an album with the artist's name as its title.
+     */
+    private val RELEASE_PAGE_TYPES = setOf(
+        "MUSIC_PAGE_TYPE_ALBUM",
+        "MUSIC_PAGE_TYPE_AUDIOBOOK",
+    )
 
     // ------------------------------------------------------------------
     // Home
@@ -56,12 +84,14 @@ internal object InnerTubeBrowseParser {
         return YtMusicArtist(
             id = browseId,
             name = headerTitle(header) ?: UNKNOWN_NAME,
-            description = headerDescription(header),
+            // The header carries the strapline/subscriber line; the artist's bio
+            // lives in its own block below the header, so either may hold it.
+            description = headerDescription(header) ?: descriptionShelf(root),
             artworkUrl = headerArtwork(header),
             tracks = shelves.firstOrNull { it.title?.equals(SONGS_SHELF, ignoreCase = true) == true }
                 ?.tracks
                 ?: shelves.flatMap { it.tracks },
-            albums = shelves.flatMap { parseReleaseShelf(it) },
+            albums = parseReleases(root),
             continuation = InnerTubeShelfParser.continuation(root),
         )
     }
@@ -161,6 +191,19 @@ internal object InnerTubeBrowseParser {
             ?: header?.obj("description")?.firstObj("runs")?.str("text")
             ?: header?.obj("straplineTextTwo")?.obj("runs")?.firstObj("text")?.str("content")
 
+    /**
+     * The artist's bio from its own description block.
+     *
+     * Artist pages ship it under the header rather than inside it, so reading the
+     * header alone reports no bio at all. A missing block is not a failure: the
+     * bio is optional, and nothing here substitutes a placeholder for it.
+     */
+    private fun descriptionShelf(root: JsonElement?): String? =
+        InnerTubeJson.findByKey(root, DESCRIPTION_SHELF)
+            ?.obj("description")
+            ?.firstObj("runs")
+            ?.str("text")
+
     private fun headerArtwork(header: JsonObject?): String? {
         val thumb = header?.obj("thumbnail") ?: return null
         val renderer = thumb.obj("croppedSquareThumbnailRenderer")
@@ -183,22 +226,77 @@ internal object InnerTubeBrowseParser {
     }
 
     /**
-     * Release summaries (`musicTwoRowItemRenderer` cards) inside one shelf.
-     * These are albums, not playable tracks, so they never enter the track list.
+     * Release summaries (`musicTwoRowItemRenderer` cards) anywhere under [root].
+     *
+     * These are albums and singles, not playable tracks, so they never enter the
+     * track list.
+     *
+     * The whole response is searched rather than one named shelf, because the
+     * web client ships an artist's releases as CAROUSELS
+     * (`musicCarouselShelfRenderer`, "Albums" / "Singles" / "Shows"), which are
+     * not music shelves at all. Searching shelves for these cards therefore finds
+     * nothing, and the discography silently disappears.
+     *
+     * Which two-row cards are releases is decided by the response, never by
+     * title: a card counts only when its own link says so. An artist page's
+     * carousels also hold songs, videos, playlists and related artists as
+     * two-row cards, and reporting a related artist as an album would put a
+     * channel id on the album destination.
      */
-    private fun parseReleaseShelf(shelf: InnerTubeShelf): List<YtMusicAlbum> =
-        InnerTubeJson.collectByKey(shelf.raw, TWO_ROW_ITEM).mapNotNull { card ->
-            val browseId = card.obj("navigationEndpoint")?.obj("browseEndpoint")?.str("browseId")
+    private fun parseReleases(root: JsonElement?): List<YtMusicAlbum> =
+        InnerTubeJson.collectByKey(root, TWO_ROW_ITEM).mapNotNull { card ->
+            val link = card.releaseLink()
+            val browseId = link?.str("browseId")?.takeIf { it.isNotBlank() }
                 ?: return@mapNotNull null
+            if (!link.isReleaseLink(browseId)) return@mapNotNull null
             val artwork = card.obj("thumbnailRenderer")?.obj("musicThumbnailRenderer")
                 ?.let { largestThumbnail(it) }
+            val subtitles = card.obj("subtitle")?.array("runs").orEmpty()
             YtMusicAlbum(
                 id = browseId,
                 title = card.obj("title")?.firstObj("runs")?.str("text") ?: UNKNOWN_NAME,
-                artist = card.obj("subtitle")?.firstObj("runs")?.str("text"),
+                // The artist is whichever subtitle run the response links; the
+                // leading run is the release TYPE or its year, not the performer.
+                artist = subtitles.firstNotNullOfOrNull { run ->
+                    run.str("text")?.takeIf { run.obj("navigationEndpoint") != null }
+                },
                 artworkUrl = artwork,
+                year = subtitles.firstNotNullOfOrNull { it.str("text")?.takeIf(::isYear) },
             )
         }
+
+    /**
+     * The catalog link a release card carries.
+     *
+     * Current responses link the card from its TITLE run; older ones from the
+     * card itself. Both are accepted, and only both — a card with neither has no
+     * identity to open and is skipped rather than guessed at.
+     */
+    private fun JsonObject.releaseLink(): JsonObject? =
+        obj("title")?.firstObj("runs")?.obj("navigationEndpoint")?.obj("browseEndpoint")
+            ?: obj("navigationEndpoint")?.obj("browseEndpoint")
+
+    /**
+     * True when [link] identifies a release.
+     *
+     * A declared page type is believed outright. When the response declares
+     * none, only an id in the release namespace is accepted — an undeclared link
+     * of any other kind is not presumed to be an album.
+     */
+    private fun JsonObject.isReleaseLink(browseId: String): Boolean =
+        when (val pageType = declaredPageType()) {
+            null -> browseId.startsWith(InnerTubeJson.ALBUM_ID_PREFIX)
+            else -> pageType in RELEASE_PAGE_TYPES
+        }
+
+    /** The page type this link declares for itself, or null when it declares none. */
+    private fun JsonObject.declaredPageType(): String? =
+        obj("browseEndpointContextSupportedConfigs")
+            ?.obj("browseEndpointContextMusicConfig")
+            ?.str("pageType")
+
+    /** A four-digit release year, kept as text because that is what the UI shows. */
+    private fun isYear(text: String): Boolean = text.length == 4 && text.all(Char::isDigit)
 
     private const val SONGS_SHELF = "Songs"
     private const val UNKNOWN_NAME = "Unknown"

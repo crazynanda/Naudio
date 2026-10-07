@@ -23,11 +23,21 @@ internal class FakeYtMusicBackend(
     private val page: Page<Track> = Page(emptyList(), null),
     private val song: Track? = null,
     private val source: AudioSource? = null,
+    /** M21: catalog pages the provider maps. Null models a "not found". */
+    private val artist: YtMusicArtist? = null,
+    private val album: YtMusicAlbum? = null,
 ) : YtMusicBackend {
 
     val calls = mutableListOf<String>()
     var lastQuery: String? = null
     var lastContinuation: String? = null
+
+    /** M21: the browse ids the provider actually asked for. */
+    var lastArtistBrowseId: String? = null
+    var lastAlbumBrowseId: String? = null
+
+    /** M21: set to fail the next catalog call, to exercise error propagation. */
+    var catalogError: Exception? = null
 
     override suspend fun search(query: String, continuation: String?): Page<Track> {
         if (query.isBlank()) return Page(emptyList(), null)
@@ -49,12 +59,16 @@ internal class FakeYtMusicBackend(
 
     override suspend fun artist(browseId: String, continuation: String?): YtMusicArtist {
         calls.add("artist")
-        return YtMusicArtist(id = browseId, name = "A")
+        lastArtistBrowseId = browseId
+        catalogError?.let { throw it }
+        return artist ?: YtMusicArtist(id = browseId, name = "A")
     }
 
     override suspend fun album(browseId: String, continuation: String?): YtMusicAlbum {
         calls.add("album")
-        return YtMusicAlbum(id = browseId, title = "Al")
+        lastAlbumBrowseId = browseId
+        catalogError?.let { throw it }
+        return album ?: YtMusicAlbum(id = browseId, title = "Al")
     }
 
     override suspend fun playlist(browseId: String, continuation: String?): YtMusicPlaylist {

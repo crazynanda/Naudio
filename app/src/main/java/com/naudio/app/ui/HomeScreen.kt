@@ -80,6 +80,7 @@ fun HomeScreen(
     onSelectProvider: (String) -> Unit,
     onOpenLibrary: () -> Unit,
     onAddToPlaylist: (Track) -> Unit,
+    onOpenArtist: (Track) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -165,6 +166,7 @@ fun HomeScreen(
                             tracks = search.tracks,
                             onTrackSelected = onTrackSelected,
                             onAddToPlaylist = onAddToPlaylist,
+                            onOpenArtist = onOpenArtist,
                         )
                     is LibraryQueryState.Error -> ErrorPane(message = search.message, onRetry = onRetry)
                 }
@@ -317,6 +319,7 @@ private fun ResultsList(
     tracks: List<Track>,
     onTrackSelected: (Track) -> Unit,
     onAddToPlaylist: (Track) -> Unit,
+    onOpenArtist: (Track) -> Unit,
 ) {
     if (tracks.isEmpty()) {
         Text(
@@ -364,6 +367,14 @@ private fun ResultsList(
                         text = track.artist,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        // Tappable only when the provider reported that artist's
+                        // own catalog id: with no id there is nothing legitimate to
+                        // open, so the label stays plain text (M21 Step 9).
+                        modifier = if (CatalogDetailActions.isArtistNavigable(track)) {
+                            Modifier.clickable { onOpenArtist(track) }
+                        } else {
+                            Modifier
+                        },
                     )
                 }
             }
@@ -448,6 +459,7 @@ private fun HomeScreenPreview() {
             onSelectProvider = {},
             onOpenLibrary = {},
             onAddToPlaylist = {},
+            onOpenArtist = {},
         )
     }
 }

@@ -93,6 +93,16 @@ internal object InnerTubeJson {
         collectByKey(root, key, maxDepth).firstOrNull()
 
     /**
+     * The browse namespace that identifies a RELEASE (an album / single / EP) as
+     * opposed to the channel a track is performed by.
+     *
+     * InnerTube knowledge, so it stays in the backend: callers across the
+     * boundary receive an opaque id and nothing about its shape. Used only to
+     * tell two ids the response already supplied apart — never to invent one.
+     */
+    const val ALBUM_ID_PREFIX = "MPRE"
+
+    /**
      * `"3:45"` / `"1:02:03"` -> milliseconds; anything else (including a blank
      * string) -> null.
      */

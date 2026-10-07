@@ -182,6 +182,147 @@ class InnerTubeTrackParserTest {
         assertNull(InnerTubeJson.parseDurationMs("3:xx"))
     }
 
+    // ------------------------------------------------------------------
+    // Catalog ids: the provider's own identity for the artist and album
+    //
+    // The live songs-filtered search response hangs each entity's
+    // `navigationEndpoint.browseEndpoint.browseId` on the very run holding that
+    // entity's name. The ids used below are the ones YT Music itself published in
+    // its public `search("wonderwall", "songs")` example output (artist
+    // UCmMUZbaYdNH0bEd1PAlAqsA, release MPREb_9nqEki4ZDpp), reproduced here so
+    // the mapping is asserted against the service's real shape rather than
+    // against an invented one.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `the artist and album ids are preserved alongside their display strings`() {
+        val tracks = InnerTubeTrackParser.parseAll(
+            InnerTubeJson.parseObject(Fixtures.load("search_page_catalog_ids.json")),
+        )
+
+        val track = tracks.first { it.id == "ZrOKjDZOtkA" }
+        assertEquals("Oasis", track.artist)
+        assertEquals("UCmMUZbaYdNH0bEd1PAlAqsA", track.artistId)
+        assertEquals("(What's The Story) Morning Glory? (Remastered)", track.album)
+        assertEquals("MPREb_9nqEki4ZDpp", track.albumId)
+    }
+
+    @Test
+    fun `an artist id is kept when the row packs artist, album and duration into one column`() {
+        // The web client also ships artist • album • duration as a single column.
+        // The artist id must survive that shape; the album id must NOT appear for
+        // an album this mapper does not surface a title for, so no label could
+        // ever claim a release the user was never shown.
+        val tracks = InnerTubeTrackParser.parseAll(
+            InnerTubeJson.parseObject(Fixtures.load("search_page_catalog_ids.json")),
+        )
+
+        val track = tracks.first { it.id == "VXb8P0qMSKo" }
+        assertEquals("Oasis", track.artist)
+        assertEquals("UCmMUZbaYdNH0bEd1PAlAqsA", track.artistId)
+        assertNull(track.album)
+        assertNull(track.albumId)
+    }
+
+    @Test
+    fun `a row the provider links nowhere reports no catalog ids`() {
+        val tracks = InnerTubeTrackParser.parseAll(
+            InnerTubeJson.parseObject(Fixtures.load("search_page_catalog_ids.json")),
+        )
+
+        val unlinked = tracks.first { it.id == "kN0BpM9tRcU" }
+        assertEquals("Daft Punk", unlinked.artist)
+        assertEquals("Discovery", unlinked.album)
+        assertNull(unlinked.artistId)
+        assertNull(unlinked.albumId)
+    }
+
+    @Test
+    fun `a response with no endpoints at all still maps with no ids`() {
+        // search_page.json predates id-bearing runs entirely: the mapping must not
+        // require them, and must not invent one for a row the provider left plain.
+        val tracks = InnerTubeTrackParser.parseAll(
+            InnerTubeJson.parseObject(Fixtures.load("search_page.json")),
+        )
+
+        assertTrue(tracks.isNotEmpty())
+        assertTrue(tracks.all { it.artistId == null && it.albumId == null })
+    }
+
+    @Test
+    fun `a compact rail splits the artist and album ids by their own runs`() {
+        val track = InnerTubeTrackParser.parseItem(
+            InnerTubeJson.parseObject(
+                """
+                {"compactMusicResponsiveListItemRenderer":{
+                  "playlistItemData":{"videoId":"COMPACT-1"},
+                  "text":{"runs":[
+                    {"text":"Wonderwall"},
+                    {"text":" • "},
+                    {"text":"Oasis","navigationEndpoint":{"browseEndpoint":{"browseId":"UCmMUZbaYdNH0bEd1PAlAqsA"}}},
+                    {"text":" • "},
+                    {"text":"Morning Glory","navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_9nqEki4ZDpp"}}},
+                    {"text":" • "},
+                    {"text":"4:19"}
+                  ]}
+                }}
+                """,
+            ),
+        )
+
+        assertEquals("UCmMUZbaYdNH0bEd1PAlAqsA", track?.artistId)
+        assertEquals("MPREb_9nqEki4ZDpp", track?.albumId)
+    }
+
+    @Test
+    fun `a release id is never reported as the artist when the two names match`() {
+        // Same-name collision: the release is linked, the performer is not. An
+        // artist destination handed MPRE… would ask the provider for a channel it
+        // never named, so the artist id stays null instead.
+        val track = InnerTubeTrackParser.parseItem(
+            InnerTubeJson.parseObject(
+                """
+                {"musicResponsiveListItemRenderer":{
+                  "playlistItemData":{"videoId":"SAME-NAME"},
+                  "flexColumns":[
+                    {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Song"}]}}},
+                    {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Oasis"}]}}},
+                    {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[
+                      {"text":"Oasis","navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_9nqEki4ZDpp"}}}
+                    ]}}},
+                    {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"3:00"}]}}}
+                  ]
+                }}
+                """,
+            ),
+        )
+
+        assertEquals("Oasis", track?.artist)
+        assertNull(track?.artistId)
+        assertEquals("MPREb_9nqEki4ZDpp", track?.albumId)
+    }
+
+    @Test
+    fun `a blank browse id is treated as no id at all`() {
+        val track = InnerTubeTrackParser.parseItem(
+            InnerTubeJson.parseObject(
+                """
+                {"musicResponsiveListItemRenderer":{
+                  "playlistItemData":{"videoId":"BLANK-LINK"},
+                  "flexColumns":[
+                    {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Song"}]}}},
+                    {"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[
+                      {"text":"Oasis","navigationEndpoint":{"browseEndpoint":{"browseId":"  "}}}
+                    ]}}}
+                  ]
+                }}
+                """,
+            ),
+        )
+
+        assertNull(track?.artistId)
+    }
+
     @Test
     fun `the collect walk is depth bounded`() {
         val deep = (1..40).fold("{}" as String) { acc, _ -> """{"wrap":$acc}""" }

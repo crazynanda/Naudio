@@ -22,9 +22,14 @@ import kotlinx.serialization.json.JsonPrimitive
  *    one flat `text.runs` array whose entries are separated by bullet runs:
  *    `["Title", " • ", "Artist", " • ", "2:34"]`.
  *
- * Both are reduced to the same ordered `fields` list by [splitFields] and then
- * interpreted once, so callers get identical [Track] semantics and there is a
- * single place where the title/artist/album/duration positions are decided.
+ * Both are reduced to the same ordered `fields` list by [splitMetaFields] and
+ * then interpreted once, so callers get identical [Track] semantics and there
+ * is a single place where the title/artist/album/duration positions are decided.
+ *
+ * Each field also carries the catalog id the response attached to that text (see
+ * [MetaField]), so a track can be reopened in the provider's own artist/album
+ * pages. The id is used verbatim: it is read from the response, never derived
+ * from a name, and a field the provider left unlinked simply has none.
  *
  * The mapper is total: a renderer without a playable song/video id maps to null
  * (artists, albums and playlists share the list-item shape but carry no
@@ -86,14 +91,14 @@ internal object InnerTubeTrackParser {
     private fun mapFull(renderer: JsonObject): Track? {
         val fields = renderer.array("flexColumns").orEmpty().mapNotNull { column ->
             val runs = column.obj(COLUMN_RENDERER)?.obj("text")?.array("runs")
-            splitFields(runs).firstOrNull()?.takeIf { it.isNotEmpty() }
+            splitMetaFields(runs).firstOrNull()?.takeIf { it.text.isNotEmpty() }
         }
         return build(renderer, fields)
     }
 
     /** Map a `compactMusicResponsiveListItemRenderer`: bullet-separated runs. */
     private fun mapCompact(renderer: JsonObject): Track? {
-        val fields = splitFields(renderer.obj("text")?.array("runs"))
+        val fields = splitMetaFields(renderer.obj("text")?.array("runs"))
         return build(renderer, fields)
     }
 
@@ -104,22 +109,30 @@ internal object InnerTubeTrackParser {
      * compact renderer's runs are separated by bullets, so splitting on the
      * bullet handles both shapes identically and flattens the columns into one
      * ordered list.
+     *
+     * A run may carry its field's catalog link (`navigationEndpoint.browseEndpoint
+     * .browseId`) — the web client hangs it off the very run holding the name, so
+     * the id travels with the text it belongs to. Fields assembled from several
+     * runs keep the first id seen among them, and a field nothing links has none.
      */
-    internal fun splitFields(runs: JsonArray?): List<String> {
+    internal fun splitMetaFields(runs: JsonArray?): List<MetaField> {
         if (runs == null) return emptyList()
-        val fields = mutableListOf<String>()
-        val current = StringBuilder()
+        val fields = mutableListOf<MetaField>()
+        var text = StringBuilder()
+        var browseId: String? = null
         for (run in runs) {
-            val text = run.str("text") ?: continue
-            if (text.trim() == FIELD_SEPARATOR) {
-                fields.add(current.toString())
-                current.clear()
+            val runText = run.str("text") ?: continue
+            if (runText.trim() == FIELD_SEPARATOR) {
+                fields.add(MetaField(text.toString(), browseId))
+                text = StringBuilder()
+                browseId = null
             } else {
-                current.append(text)
+                text.append(runText)
+                if (browseId == null) browseId = run.catalogLink()
             }
         }
-        fields.add(current.toString())
-        return fields.map { it.trim() }
+        fields.add(MetaField(text.toString(), browseId))
+        return fields.map { it.copy(text = it.text.trim()) }
     }
 
     /**
@@ -130,21 +143,60 @@ internal object InnerTubeTrackParser {
      * compact rail that lists no album is one field shorter; treating the last
      * field as an album would put "2:34" in the album slot.
      */
-    private fun build(renderer: JsonObject, fields: List<String>): Track? {
+    private fun build(renderer: JsonObject, fields: List<MetaField>): Track? {
         val videoId = extractVideoId(renderer) ?: return null
-        val durationText = fields.lastOrNull()?.takeIf { parseDurationMs(it) != null }
-        val durationIndex = if (durationText == null) -1 else fields.lastIndexOf(durationText)
-        val album = fields.getOrNull(2)?.takeIf { fields.indexOf(it) != durationIndex }
+        val durationText = fields.lastOrNull()?.text?.takeIf { parseDurationMs(it) != null }
+        val durationIndex = if (durationText == null) -1 else fields.indexOfLast { it.text == durationText }
+        val albumField = fields.getOrNull(2)?.takeIf { fields.indexOf(it) != durationIndex }
+        val album = albumField?.text?.takeIf { it.isNotEmpty() }
+        val artist = fields.getOrNull(1)?.text?.takeIf { it.isNotEmpty() } ?: UNKNOWN_ARTIST
         return Track(
             id = videoId,
             providerId = YtMusicBackend.PROVIDER_ID,
-            title = fields.getOrNull(0)?.takeIf { it.isNotEmpty() } ?: UNKNOWN_TITLE,
-            artist = fields.getOrNull(1)?.takeIf { it.isNotEmpty() } ?: UNKNOWN_ARTIST,
-            album = album?.takeIf { it.isNotEmpty() },
+            title = fields.getOrNull(0)?.text?.takeIf { it.isNotEmpty() } ?: UNKNOWN_TITLE,
+            artist = artist,
+            album = album,
             artworkUrl = extractArtwork(renderer),
             durationMs = parseDurationMs(durationText) ?: 0L,
+            artistId = catalogId(fields, artist, albumNamespace = false),
+            albumId = catalogId(fields, album, albumNamespace = true),
         )
     }
+
+    /**
+     * The catalog id the response linked to the display string [label], or null
+     * when it linked none.
+     *
+     * Identity is read from the RUN, never guessed from a position: the same
+     * response puts the artist in one column on one endpoint and inside a shared
+     * column on another, so the only trustworthy pairing is the id that sits on
+     * the same run as the text. A name is therefore only ever resolved against an
+     * id the provider itself sent — it is never used as, or turned into, one.
+     *
+     * [albumNamespace] picks which namespace counts as a match: the release
+     * namespace for an album, anything else for an artist. That is what keeps a
+     * release whose title equals its artist's name from handing the artist
+     * destination an album id.
+     *
+     * Null is the ordinary answer — for a provider that links nothing, for a
+     * rail the web client renders as plain text, and for a watch page, whose
+     * `videoDetails` block is descriptive only. A null id leaves the label plain
+     * text in the UI rather than opening a page the provider never named.
+     */
+    private fun catalogId(fields: List<MetaField>, label: String?, albumNamespace: Boolean): String? {
+        if (label.isNullOrEmpty()) return null
+        return fields.asSequence()
+            .filter { it.text == label }
+            .mapNotNull { it.browseId }
+            .firstOrNull { it.startsWith(InnerTubeJson.ALBUM_ID_PREFIX) == albumNamespace }
+    }
+
+    /** The catalog link a single run carries, or null. Blank is treated as none. */
+    private fun JsonElement.catalogLink(): String? =
+        obj("navigationEndpoint")
+            ?.obj("browseEndpoint")
+            ?.str("browseId")
+            ?.takeIf { it.isNotBlank() }
 
     /**
      * The playable song id. The explicit `playlistItemData.videoId` is
@@ -184,6 +236,12 @@ internal object InnerTubeTrackParser {
     }
 
     private val VIDEO_ID_IN_FRAGMENT = Regex("\"videoId\"\\s*:\\s*\"([^\"]+)\"")
+
+    /**
+     * One metadata field of a list item: the text to display and, when the
+     * response linked it, the provider's own catalog id for that text.
+     */
+    internal data class MetaField(val text: String, val browseId: String? = null)
 
 /** Bound on wrapper unwrapping, so a pathological payload stays bounded. */
 private const val MAX_WRAPPER_DEPTH = 4

@@ -1,11 +1,16 @@
 package com.naudio.provider.ytmusic
 
+import com.naudio.core.model.AlbumDetail
+import com.naudio.core.model.AlbumSummary
+import com.naudio.core.model.ArtistDetail
 import com.naudio.core.model.Track
 import com.naudio.provider.api.MetadataProvider
 import com.naudio.provider.api.Page
 import com.naudio.provider.api.PageToken
 import com.naudio.provider.api.ProviderId
 import com.naudio.provider.innertube.api.YtMusicBackend
+import com.naudio.provider.innertube.api.YtMusicAlbum
+import com.naudio.provider.innertube.api.YtMusicArtist
 
 /**
  * YouTube Music catalog metadata provider (anonymous, unauthenticated).
@@ -62,6 +67,68 @@ class YtMusicMetadataProvider(
      * "not found", not a failure.
      */
     override suspend fun lookupTrack(id: String): Track? = backend.song(id)
+
+    /**
+     * Artist page (M21), mapped from the backend's browse-shaped result onto the
+     * provider-neutral [ArtistDetail].
+     *
+     * Every track and album the backend emits is already stamped with this
+     * provider's id (the backend owns that constant), so the mapping here is a
+     * pure structural translation with no network work and no parsing.
+     *
+     * A blank id is rejected before any request is issued: it can only be a
+     * caller mistake, and asking the backend for one would burn a request on a
+     * malformed id. Errors thrown by the backend surface unchanged.
+     */
+    override suspend fun getArtist(artistId: String): ArtistDetail? {
+        if (artistId.isBlank()) return null
+        val artist = backend.artist(artistId)
+        return toDomain(artist)
+    }
+
+    /** Album page (M21). See [getArtist] for the shared mapping rules. */
+    override suspend fun getAlbum(albumId: String): AlbumDetail? {
+        if (albumId.isBlank()) return null
+        val album = backend.album(albumId)
+        return album.toDomain()
+    }
+
+    /**
+     * Preserve provider identity on the entity itself.
+     *
+     * [YtMusicBackend.PROVIDER_ID] — not [ProviderId.value] of some other
+     * provider — is stamped onto the domain object, because that is the id the
+     * backend put on every track it returns and therefore the only id the rest
+     * of the app can route these entities back with.
+     */
+    private fun toDomain(artist: YtMusicArtist): ArtistDetail = ArtistDetail(
+        id = artist.id,
+        providerId = YtMusicProviderIds.YTMUSIC,
+        name = artist.name,
+        description = artist.description,
+        artworkUrl = artist.artworkUrl,
+        tracks = artist.tracks,
+        albums = artist.albums.map { it.toSummary() },
+    )
+
+    private fun YtMusicAlbum.toDomain(): AlbumDetail = AlbumDetail(
+        id = id,
+        providerId = YtMusicProviderIds.YTMUSIC,
+        title = title,
+        artist = artist,
+        artworkUrl = artworkUrl,
+        year = year,
+        tracks = tracks,
+    )
+
+    private fun YtMusicAlbum.toSummary(): AlbumSummary = AlbumSummary(
+        id = id,
+        providerId = YtMusicProviderIds.YTMUSIC,
+        title = title,
+        artist = artist,
+        artworkUrl = artworkUrl,
+        year = year,
+    )
 
     companion object {
         /** Stable provider identifier used by the registry. */

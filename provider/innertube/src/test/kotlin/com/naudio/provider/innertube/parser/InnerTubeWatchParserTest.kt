@@ -23,6 +23,17 @@ class InnerTubeWatchParserTest {
     }
 
     @Test
+    fun `watch-page metadata reports no catalog ids`() {
+        // `videoDetails` is descriptive only — it carries no catalog link — so a
+        // track resolved from the watch page must come back with no artist or
+        // album id rather than a plausible-looking one.
+        val track = InnerTubeWatchParser.parseSong(Fixtures.load("watch.json"))
+
+        assertNull(track?.artistId)
+        assertNull(track?.albumId)
+    }
+
+    @Test
     fun `a response without videoDetails is not found rather than an error`() {
         assertNull(InnerTubeWatchParser.parseSong("""{"contents":{}}"""))
         assertNull(InnerTubeWatchParser.parseSong("{}"))
