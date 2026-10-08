@@ -144,6 +144,46 @@ class PlaybackViewModel(
         coordinator.removeQueueItem(index)
     }
 
+    // ------------------------------------------------------------------
+    // M22: queue manipulation (play next / add to queue / reorder / clear)
+    // ------------------------------------------------------------------
+
+    /**
+     * M22: play [track] next. If a track is currently playing, [track] is
+     * inserted immediately after it and the current audio continues; if there
+     * is no active track, [track] becomes the queue and current item via the
+     * existing setQueue path.
+     */
+    fun playNext(track: com.naudio.core.model.Track) {
+        coordinator.playNext(track)
+    }
+
+    /**
+     * M22: append [tracks] to the end of the queue. Playback is not
+     * interrupted; the current index is preserved.
+     */
+    fun addToQueue(tracks: List<com.naudio.core.model.Track>) {
+        coordinator.addToQueue(tracks)
+    }
+
+    /**
+     * M22: move the queue item at [fromIndex] to [toIndex]. The current
+     * index is updated to follow the moved item; invalid or identical indexes
+     * are safely ignored.
+     */
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        coordinator.moveQueueItem(fromIndex, toIndex)
+    }
+
+    /**
+     * M22: clear the whole queue. Stops playback, resets the queue and
+     * persisted position, and persists an empty queue so a restart shows an
+     * empty queue with no stale item.
+     */
+    fun clearQueue() {
+        coordinator.clearQueue()
+    }
+
     /** Intent: toggle the favorite state of the current track. */
     fun onToggleFavorite() {
         val track = coordinator.state.value.currentTrack ?: return

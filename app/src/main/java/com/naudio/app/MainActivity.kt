@@ -26,6 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.naudio.app.di.AppContainer
 import com.naudio.app.ui.AddToPlaylistSheet
 import com.naudio.app.ui.AlbumDetailScreen
+import com.naudio.app.ui.TrackOptionsSheet
 import com.naudio.app.ui.AlbumViewModel
 import com.naudio.app.ui.ArtistDetailScreen
 import com.naudio.app.ui.ArtistViewModel
@@ -215,6 +216,13 @@ private fun NaudioRoute(container: AppContainer) {
 
     // M13: the track queued for the add-to-playlist sheet (null = closed).
     var addToPlaylistTrack by remember { mutableStateOf<Track?>(null) }
+
+    // M22: reusable track-options sheet, hosted on top of every screen that
+    // knows about playlists (the full-screen player is the primary target).
+    // Long-pressing a queue row opens this sheet with Play Next / Add to
+    // Queue / Add to Playlist, reusing the existing playlist machinery.
+    var trackOptionsTrack by remember { mutableStateOf<Track?>(null) }
+    val openTrackOptions = { track: Track -> trackOptionsTrack = track }
 
     when (screen) {
         Screen.HOME -> HomeScreen(
@@ -408,6 +416,9 @@ private fun NaudioRoute(container: AppContainer) {
             onToggleFavorite = playbackViewModel::onToggleFavorite,
             onJumpToQueueIndex = playbackViewModel::jumpToQueueIndex,
             onRemoveQueueItem = playbackViewModel::removeQueueItem,
+            onMoveQueueItem = playbackViewModel::moveQueueItem,
+            onClearQueue = playbackViewModel::clearQueue,
+            onTrackOptions = openTrackOptions,
             onPlaybackErrorShown = playbackViewModel::onErrorShown,
             onLyricsSeek = lyricsViewModel::onSeek,
             // M16: playback modes — commands go to the player, state comes
@@ -432,6 +443,30 @@ private fun NaudioRoute(container: AppContainer) {
                 playlistViewModel.createPlaylistAndAddTrack(name, track)
                 addToPlaylistTrack = null
             },
+        )
+    }
+
+    // M22: track-options sheet, hosted above the player (only meaningful when
+    // the player is open, since long-pressing is only wired in the queue view).
+    trackOptionsTrack?.let { track ->
+        TrackOptionsSheet(
+            track = track,
+            playlists = playlistState.playlists,
+            onPlayNext = {
+                playbackViewModel.playNext(track)
+                trackOptionsTrack = null
+            },
+            onAddToQueue = {
+                playbackViewModel.addToQueue(listOf(track))
+                trackOptionsTrack = null
+            },
+            onAddToPlaylist = { playlistId ->
+                if (playlistId != null) {
+                    playlistViewModel.addTrackToPlaylist(playlistId, track)
+                }
+                trackOptionsTrack = null
+            },
+            onDismiss = { trackOptionsTrack = null },
         )
     }
 }

@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.naudio.app.playback.PlaybackError
+import com.naudio.core.model.Track
 import com.naudio.core.player.PlayerState
 
 /**
@@ -53,6 +54,9 @@ fun PlayerScreen(
     onToggleFavorite: () -> Unit,
     onJumpToQueueIndex: (Int) -> Unit,
     onRemoveQueueItem: (Int) -> Unit,
+    onMoveQueueItem: (Int, Int) -> Unit,
+    onClearQueue: () -> Unit,
+    onTrackOptions: (Track) -> Unit,
     onPlaybackErrorShown: () -> Unit,
     onLyricsSeek: (Long) -> Unit,
     // M16: playback-mode intents (state comes from playerState).
@@ -173,6 +177,9 @@ fun PlayerScreen(
                     currentIndex = playbackUiState.currentIndex,
                     onJumpToQueueIndex = onJumpToQueueIndex,
                     onRemoveQueueItem = onRemoveQueueItem,
+                    onMoveQueueItem = onMoveQueueItem,
+                    onClearQueue = onClearQueue,
+                    onTrackOptions = onTrackOptions,
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 16.dp),

@@ -274,6 +274,117 @@ class PlaybackCoordinator(
         }
     }
 
+    // ------------------------------------------------------------------
+    // M22: queue manipulation (play next / add to queue / clear / reorder)
+    // ------------------------------------------------------------------
+
+    /**
+     * Insert [track] into the queue. If a track is currently playing (a valid
+     * current index), the new track is inserted immediately after it and the
+     * currently playing audio is never stopped or restarted. If there is no
+     * active track, [setQueue] establishes the track as the queue and current
+     * item through the existing playback architecture.
+     */
+    fun playNext(track: Track) {
+        val currentIndex = _state.value.currentIndex
+        val queue = _state.value.queue
+        if (currentIndex != null && currentIndex in queue.indices) {
+            // Active queue with a current track: insert after it. The new track
+            // is queued but NOT loaded, so the current audio continues.
+            //
+            // currentIndex records the *loaded/playing* track, not the queue
+            // position. It therefore stays on the old track; the item at
+            // currentIndex + 1 is the next-to-play track (persisted as such).
+            val newQueue = queue.toMutableList().apply { add(currentIndex + 1, track) }
+            _state.update { it.copy(queue = newQueue, currentIndex = currentIndex) }
+            scope.launch {
+                persistMutex.withLock { queueRepository.replaceQueue(newQueue, currentIndex + 1) }
+            }
+        } else {
+            // No active track: establish the track as the queue and current item
+            // through the existing setQueue path (resolves and loads it).
+            setQueue(listOf(track), startIndex = 0)
+        }
+    }
+
+    /**
+     * Append [tracks] to the end of the queue. The current index is preserved,
+     * so playback is not interrupted and the current track is not restarted.
+     */
+    fun addToQueue(tracks: List<Track>) {
+        if (tracks.isEmpty()) return
+        val currentIndex = _state.value.currentIndex
+        val newQueue = _state.value.queue + tracks
+        _state.update { it.copy(queue = newQueue) }
+        scope.launch {
+            persistMutex.withLock { queueRepository.replaceQueue(newQueue, currentIndex) }
+        }
+    }
+
+    /**
+     * Move the item at [fromIndex] to [toIndex]. The current index is updated
+     * to follow the moved item (or shifted by the renumbering), so the currently
+     * playing audio is never restarted merely because another item was reordered.
+     *
+     * - Same from/to index → no-op.
+     * - Out-of-range indices → safely ignored.
+     * - Empty or single-item queue → safely handled.
+     */
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        val queue = _state.value.queue
+        val currentIndex = _state.value.currentIndex
+        if (queue.isEmpty()) return
+        if (fromIndex !in queue.indices || toIndex !in queue.indices) return
+        if (fromIndex == toIndex) return
+        val moving = queue[fromIndex]
+        val isCurrent = fromIndex == currentIndex
+        val newQueue = queue.toMutableList().apply { removeAt(fromIndex); add(toIndex, moving) }
+        // The current item's new position:
+        //   - if it was the moved item, it now sits at [toIndex];
+        //   - otherwise it shifted by the removal/insertion.
+        // newIndex is nullable; it is null only if there is no current item
+        // (which cannot happen in this branch, but we keep it nullable for the
+        // caller to persist safely).
+        val newIndex: Int? = when {
+            isCurrent -> toIndex
+            else -> {
+                // Queue is non-empty. If there is no persisted/current index
+                // (e.g. a restored queue never played), no item is "current",
+                // so the moved item's new position is the natural choice.
+                val c = currentIndex
+                if (c == null) toIndex
+                else {
+                    val ciAfterRemove = if (fromIndex < c) c - 1 else c
+                    if (toIndex <= ciAfterRemove) ciAfterRemove + 1 else ciAfterRemove
+                }
+            }
+        }
+        _state.update { it.copy(queue = newQueue, currentIndex = newIndex) }
+        scope.launch {
+            persistMutex.withLock { queueRepository.replaceQueue(newQueue, newIndex) }
+        }
+    }
+
+    /**
+     * Clear the entire queue: stop playback, reset the queue/position state, and
+     * persist an empty queue with no position so a restart shows an empty queue
+     * and a stale ENDED cannot resurrect the previous one.
+     */
+    fun clearQueue() {
+        // Stop the loaded media and close the auto-advance gate so no stale item
+        // is advertised and no stray ENDED can restart the queue.
+        stopPlayback()
+        // A user action races startup restore: cancel it so it cannot win.
+        restoreJob?.cancel()
+        resolveJob?.cancel()
+        // Fresh empty queue and position. The controller is idle (not resumed),
+        // so nothing persists to be restored on a later launch.
+        _state.update { PlaybackQueueState() }
+        scope.launch {
+            persistMutex.withLock { queueRepository.replaceQueue(emptyList(), null) }
+        }
+    }
+
     /**
      * Stop playback after the queue was emptied, or after a resolution run
      * found nothing playable (M20). The controller returns to idle and this

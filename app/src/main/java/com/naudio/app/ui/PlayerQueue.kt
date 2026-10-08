@@ -1,19 +1,28 @@
 package com.naudio.app.ui
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,33 +30,62 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.naudio.core.model.Playlist
 import com.naudio.core.model.Track
 
 /**
- * Visual playback queue (M11) for the full-screen player: scrollable list with
- * the current item highlighted, tap-to-jump and per-item remove. No drag
- * reordering; all playback actions are intents only.
+ * Visual playback queue (M11/M22) for the full-screen player: scrollable list
+ * with the current item highlighted, tap-to-jump, per-item remove, queue-level
+ * reorder (up/down arrows) and a clear-queue action.
+ *
+ * This is pure UI: every intent is delegated to the caller. Queue mutation is
+ * owned by [PlaybackCoordinator].
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PlayerQueue(
     queue: List<Track>,
     currentIndex: Int?,
     onJumpToQueueIndex: (Int) -> Unit,
     onRemoveQueueItem: (Int) -> Unit,
+    onMoveQueueItem: (fromIndex: Int, toIndex: Int) -> Unit,
+    onClearQueue: () -> Unit,
+    onTrackOptions: (Track) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = "Queue (" + queue.size + ")",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Queue (" + queue.size + ")",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            if (queue.isNotEmpty()) {
+                Button(
+                    onClick = onClearQueue,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Text(
+                        text = "Clear",
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
+        }
         if (queue.isEmpty()) {
             Text(
                 text = "Queue is empty.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 8.dp),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
             )
         } else {
             LazyColumn(
@@ -61,6 +99,9 @@ fun PlayerQueue(
                         isCurrent = index == currentIndex,
                         onClick = { onJumpToQueueIndex(index) },
                         onRemove = { onRemoveQueueItem(index) },
+                        onMoveUp = { if (index > 0) onMoveQueueItem(index, index - 1) },
+                        onMoveDown = { if (index < queue.size - 1) onMoveQueueItem(index, index + 1) },
+                        onTrackOptions = { onTrackOptions(track) },
                     )
                 }
             }
@@ -68,6 +109,7 @@ fun PlayerQueue(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun QueueItem(
     position: Int,
@@ -75,12 +117,18 @@ private fun QueueItem(
     isCurrent: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onTrackOptions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onTrackOptions,
+            )
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -130,12 +178,39 @@ private fun QueueItem(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        IconButton(onClick = onRemove) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "Remove " + track.title,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        // Reorder controls: move up / move down (no drag-and-drop dependency).
+        Row(
+            modifier = Modifier.padding(end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(
+                onClick = onMoveUp,
+                enabled = position > 1,
+                modifier = Modifier.size(24.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowUp,
+                    contentDescription = "Move up",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(
+                onClick = onMoveDown,
+                modifier = Modifier.size(24.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = "Move down",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onRemove) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Remove " + track.title,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
