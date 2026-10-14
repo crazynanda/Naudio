@@ -41,6 +41,7 @@ import com.naudio.app.ui.PlaylistDetailScreen
 import com.naudio.app.ui.PlaylistViewModel
 import com.naudio.app.ui.PlayerScreen
 import com.naudio.app.ui.theme.NaudioTheme
+import com.naudio.core.model.CatalogAlbumSummary
 import com.naudio.core.model.Track
 
 class MainActivity : ComponentActivity() {
@@ -195,6 +196,15 @@ private fun NaudioRoute(container: AppContainer) {
         screen = Screen.ARTIST_DETAIL
     }
 
+    // Album entry point from search results. Uses the real album id the
+    // categorizer surfaced — no Track is constructed as a navigation vehicle.
+    fun openAlbumFromSearch(album: CatalogAlbumSummary) {
+        val target = CatalogDetailActions.openAlbum(album) ?: return
+        catalogOrigin = Screen.HOME
+        albumViewModel.openAlbum(target.providerId, target.catalogId)
+        screen = Screen.ALBUM_DETAIL
+    }
+
     // M21 Step 9 audit — where catalog navigation is wired, and where it is not.
     //
     // A track's artist and album are DISPLAY strings (`Track.artist`,
@@ -217,10 +227,11 @@ private fun NaudioRoute(container: AppContainer) {
     // M13: the track queued for the add-to-playlist sheet (null = closed).
     var addToPlaylistTrack by remember { mutableStateOf<Track?>(null) }
 
-    // M22: reusable track-options sheet, hosted on top of every screen that
-    // knows about playlists (the full-screen player is the primary target).
-    // Long-pressing a queue row opens this sheet with Play Next / Add to
-    // Queue / Add to Playlist, reusing the existing playlist machinery.
+    // M23: reusable track-options sheet, hosted at the route level so every
+    // screen that can show a track row can open it. The sheet is the single,
+    // reusable action surface for Play next / Add to queue / Add to playlist;
+    // each screen chooses the gesture that fits (long-press where it is free,
+    // an explicit Options affordance where long-press is already claimed).
     var trackOptionsTrack by remember { mutableStateOf<Track?>(null) }
     val openTrackOptions = { track: Track -> trackOptionsTrack = track }
 
@@ -247,13 +258,33 @@ private fun NaudioRoute(container: AppContainer) {
                 permissionLauncher.launch(audioPermission())
             },
             onSelectProvider = homeViewModel::onSelectProvider,
+            onSelectCategory = homeViewModel::onSelectCategory,
             onOpenLibrary = { screen = Screen.LIBRARY },
             onOpenPlayer = ::openPlayer,
             // M13: long-press a search result to add it to a playlist.
             onAddToPlaylist = { track -> addToPlaylistTrack = track },
+            // M23: long-press a search result's song row to open track options; the
+            // artist label is a separate tap target and is not a long-press target.
+            onTrackOptions = openTrackOptions,
             // M21 follow-up: a search result's artist label opens the provider's
             // own artist page — but only for a track that carries an artist id.
             onOpenArtist = ::openArtistDetail,
+            // M23: artist card in search results opens the provider's artist page
+            // using the real artist id the categorizer surfaced.
+            onOpenArtistCard = { artist ->
+                val target = CatalogDetailActions.openArtist(artist) ?: return@HomeScreen
+                catalogOrigin = Screen.HOME
+                artistViewModel.openArtist(target.providerId, target.catalogId)
+                screen = Screen.ARTIST_DETAIL
+            },
+            // M23: album card in search results opens the provider's album page
+            // using the real album id — never sent to track playback.
+            onOpenAlbumCard = { album ->
+                val target = CatalogDetailActions.openAlbum(album) ?: return@HomeScreen
+                catalogOrigin = Screen.HOME
+                albumViewModel.openAlbum(target.providerId, target.catalogId)
+                screen = Screen.ALBUM_DETAIL
+            },
         )
 
         Screen.LIBRARY -> LibraryScreen(
@@ -277,6 +308,9 @@ private fun NaudioRoute(container: AppContainer) {
             onPlaybackErrorShown = playbackViewModel::onErrorShown,
             // Long-press a favorite to remove it (provider-aware identity).
             onRemoveFavorite = libraryViewModel::onRemoveFavorite,
+            // M23: long-press a favorite row to open track options; remove-favorite
+            // is still available as a one-finger removal inside the sheet.
+            onTrackOptions = openTrackOptions,
             // M13: playlists.
             onCreatePlaylist = playlistViewModel::createPlaylist,
             onOpenPlaylist = { id ->
@@ -333,6 +367,7 @@ private fun NaudioRoute(container: AppContainer) {
             onSeek = playbackViewModel::onSeek,
             onOpenPlayer = ::openPlayer,
             onPlaybackErrorShown = playbackViewModel::onErrorShown,
+            onTrackOptions = openTrackOptions,
         )
 
         // M21: catalog detail. The screens compute a [PlaybackRequest] through
@@ -353,6 +388,7 @@ private fun NaudioRoute(container: AppContainer) {
                     playbackViewModel.setQueue(request.tracks, request.startIndex)
                 }
             },
+            onTrackOptions = openTrackOptions,
             // Step 9 guard, executed as code: a card without a real catalog id resolves to
             // null and the screen stays put, rather than inventing an id.
             onAlbumSelected = { album, artist ->
@@ -401,6 +437,7 @@ private fun NaudioRoute(container: AppContainer) {
                     playbackViewModel.setQueue(request.tracks, request.startIndex)
                 }
             },
+            onTrackOptions = openTrackOptions,
         )
 
         Screen.PLAYER -> PlayerScreen(
@@ -446,8 +483,9 @@ private fun NaudioRoute(container: AppContainer) {
         )
     }
 
-    // M22: track-options sheet, hosted above the player (only meaningful when
-    // the player is open, since long-pressing is only wired in the queue view).
+    // Track-options sheet, hosted at the route level: any screen may open it
+    // by setting [trackOptionsTrack]; the sheet is dismissed by any of its
+    // actions or by the user backing out of it.
     trackOptionsTrack?.let { track ->
         TrackOptionsSheet(
             track = track,

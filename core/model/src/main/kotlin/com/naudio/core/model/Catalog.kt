@@ -19,9 +19,9 @@ package com.naudio.core.model
  * never a placeholder string, so "absent" stays distinguishable from "empty".
  */
 
+/** One artist page: identity, presentation metadata and its catalog content. */
+
 /**
- * One artist page: identity, presentation metadata and its catalog content.
- *
  * [id] is the provider's own catalog identifier for the artist (for a browse-id
  * based backend, the channel/browse id). It is NOT a [Track.id] and is only
  * meaningful together with [providerId].
@@ -79,4 +79,45 @@ data class AlbumDetail(
 ) {
     /** True when the release has no tracks the provider could report. */
     val isEmpty: Boolean get() = tracks.isEmpty()
+}
+
+/**
+ * One artist card shown in the categorized catalog search (M23).
+ *
+ * Identity and presentation metadata only: the actual artist page is fetched
+ * through [com.naudio.data.repository.LibraryRepository.artist] when the
+ * user opens the card. The card carries the provider's OWN artist id, so a tap
+ * can reopen the page with the same two strings the provider reported.
+ */
+data class CatalogArtistSummary(
+    val id: String,
+    val providerId: String,
+    val name: String,
+    val artworkUrl: String? = null,
+) {
+    /** True when this card carries no usable catalog identity. */
+    val isEmpty: Boolean get() = id.isBlank() || providerId.isBlank()
+}
+
+/**
+ * One album card shown in the categorized catalog search (M23).
+ *
+ * Identity and presentation only: the album itself is fetched through
+ * [com.naudio.data.repository.LibraryRepository.album] when the user opens the
+ * card. The card carries the provider's OWN album id, so a tap can reopen the
+ * release with the same two strings the provider reported.
+ */
+data class CatalogAlbumSummary(
+    val id: String,
+    val providerId: String,
+    val title: String,
+    val artist: String? = null,
+    val artworkUrl: String? = null,
+    /** Release year, when the provider reports one. Kept as text so the UI
+     *  shows exactly what the provider sent.
+     */
+    val year: String? = null,
+) {
+    /** True when this card carries no usable catalog identity. */
+    val isEmpty: Boolean get() = id.isBlank() || providerId.isBlank()
 }

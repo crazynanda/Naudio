@@ -4,6 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,6 +18,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -65,6 +71,7 @@ fun LibraryScreen(
     onSeek: (Long) -> Unit,
     onOpenPlayer: () -> Unit,
     onPlaybackErrorShown: () -> Unit,
+    onTrackOptions: (Track) -> Unit,
     onRemoveFavorite: (Track) -> Unit,
     onCreatePlaylist: (String) -> Unit,
     onOpenPlaylist: (Long) -> Unit,
@@ -226,12 +233,23 @@ fun LibraryScreen(
                                 .padding(end = 12.dp)
                                 .size(44.dp),
                         )
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(text = track.title, style = MaterialTheme.typography.titleMedium)
                             Text(
                                 text = track.artist,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        IconButton(
+                            onClick = { onTrackOptions(track) },
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Track options",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp),
                             )
                         }
                     }
@@ -268,6 +286,7 @@ private fun LibraryScreenPreview() {
             onOpenPlayer = {},
             onPlaybackErrorShown = {},
             onRemoveFavorite = {},
+            onTrackOptions = {},
             onCreatePlaylist = {},
             onOpenPlaylist = {},
         )

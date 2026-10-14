@@ -3,6 +3,8 @@ package com.naudio.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,6 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +61,8 @@ fun PlaylistDetailScreen(
     onPlayPlaylist: () -> Unit,
     onTrackSelected: (index: Int) -> Unit,
     onRemoveTrack: (Track) -> Unit,
+    onTrackOptions: (Track) -> Unit,
+
     onRenamePlaylist: (String) -> Unit,
     onDeletePlaylist: () -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -230,6 +236,17 @@ fun PlaylistDetailScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
+                            IconButton(
+                                onClick = { onTrackOptions(track) },
+                                modifier = Modifier.size(36.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Track options",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -266,6 +283,7 @@ private fun PlaylistDetailScreenPreview() {
             onSeek = {},
             onOpenPlayer = {},
             onPlaybackErrorShown = {},
+            onTrackOptions = {},
         )
     }
 }

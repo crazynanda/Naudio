@@ -30,6 +30,9 @@ dependencies {
     api(project(":provider:api"))
     implementation(project(":provider:default"))
 
+    // Core domain models: Track, AudioSource, ArtistDetail, AlbumDetail.
+    implementation(project(":core:model"))
+
     implementation(libs.kotlinx.coroutines.core)
 
     // Persistence layer: Room database + entities + DAOs.

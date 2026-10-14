@@ -2,6 +2,8 @@ package com.naudio.app.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -57,6 +59,7 @@ fun ArtistDetailScreen(
     onBack: () -> Unit,
     onPlayTopTracks: (List<Track>) -> Unit,
     onTrackSelected: (List<Track>, Int) -> Unit,
+    onTrackOptions: (Track) -> Unit,
     onAlbumSelected: (AlbumSummary, ArtistDetail) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -103,6 +106,7 @@ fun ArtistDetailScreen(
                         primaryActionLabel = "Play top songs",
                         onPrimaryAction = { onPlayTopTracks(artist.tracks) },
                         onTrackSelected = { index -> onTrackSelected(artist.tracks, index) },
+                        onTrackOptions = { track -> onTrackOptions(track) },
                     )
                 }
             },
@@ -124,6 +128,7 @@ fun AlbumDetailScreen(
     onBack: () -> Unit,
     onPlayAlbum: (List<Track>) -> Unit,
     onTrackSelected: (List<Track>, Int) -> Unit,
+    onTrackOptions: (Track) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BackHandler(onBack = onBack)
@@ -157,6 +162,7 @@ fun AlbumDetailScreen(
                         primaryActionLabel = "Play album",
                         onPrimaryAction = { onPlayAlbum(album.tracks) },
                         onTrackSelected = { index -> onTrackSelected(album.tracks, index) },
+                        onTrackOptions = { track -> onTrackOptions(track) },
                         trackArtwork = { it.artworkUrl?.takeIf { it.isNotBlank() } ?: album.artworkUrl ?: "" },
                     )
                 }
@@ -375,6 +381,7 @@ private fun AlbumRow(albums: List<AlbumSummary>, artist: ArtistDetail, onAlbumSe
  * The primary action is disabled when there is nothing to play, so an empty
  * artist's Songs section cannot push an empty queue into the coordinator.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TrackSection(
     title: String,
@@ -382,6 +389,7 @@ private fun TrackSection(
     primaryActionLabel: String,
     onPrimaryAction: () -> Unit,
     onTrackSelected: (Int) -> Unit,
+    onTrackOptions: (Track) -> Unit,
     /** Artwork to paint for each track. Defaults to the track's own URL;
      *  a caller that owns an album may supply a fallback (typically the album&rsquo;s
      *  artwork) so that a track without individual artwork still renders. */
@@ -417,6 +425,7 @@ private fun TrackSection(
                 index = index,
                 track = track,
                 onClick = { onTrackSelected(index) },
+                onLongClick = { onTrackOptions(track) },
                 trackArtwork = trackArtwork,
             )
         }
@@ -428,12 +437,17 @@ private fun TrackSection(
  * the playlist and queue rows use, so a track looks identical wherever it is
  * listed. Rows are emitted by [TrackSection] rather than by a nested lazy list,
  * because they already live inside the page's single [LazyColumn].
+ *
+ * Long-press opens track options (M23). That does not conflict with any existing
+ * catalog-detail gesture: the row uses only a single-tap action today.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CatalogTrackRow(
     index: Int,
     track: Track,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     /** Artwork to paint for this row. Defaults to the track's own URL, but the
      *  caller (an album list) may supply a fallback, normally the album&rsquo;s
      *  artwork, so a track without individual artwork still renders. */
@@ -442,7 +456,10 @@ private fun CatalogTrackRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -511,6 +528,7 @@ private fun ArtistDetailScreenPreview() {
             onPlayTopTracks = {},
             onTrackSelected = { _, _ -> },
             onAlbumSelected = { _, _ -> },
+            onTrackOptions = {},
         )
     }
 }
@@ -536,6 +554,7 @@ private fun AlbumDetailScreenPreview() {
             onBack = {},
             onPlayAlbum = {},
             onTrackSelected = { _, _ -> },
+            onTrackOptions = {},
         )
     }
 }

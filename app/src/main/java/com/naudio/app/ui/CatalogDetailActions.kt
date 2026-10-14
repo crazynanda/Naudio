@@ -2,6 +2,8 @@ package com.naudio.app.ui
 
 import com.naudio.core.model.AlbumDetail
 import com.naudio.core.model.AlbumSummary
+import com.naudio.core.model.CatalogAlbumSummary
+import com.naudio.core.model.CatalogArtistSummary
 import com.naudio.core.model.Track
 
 /**
@@ -96,6 +98,18 @@ internal object CatalogDetailActions {
     }
 
     /**
+     * The navigation for tapping an artist card in search results, or null when
+     * the card carries no usable catalog id.
+     *
+     * Uses the real [CatalogArtistSummary] identity directly — no Track is
+     * constructed as a navigation vehicle.
+     */
+    fun openArtist(artist: CatalogArtistSummary): CatalogNavigation? {
+        if (artist.id.isBlank() || artist.providerId.isBlank()) return null
+        return CatalogNavigation(providerId = artist.providerId, catalogId = artist.id)
+    }
+
+    /**
      * The navigation for tapping an album card, or null when the card has no
      * usable catalog id.
      *
@@ -107,6 +121,19 @@ internal object CatalogDetailActions {
     fun openAlbum(summary: AlbumSummary): CatalogNavigation? {
         if (summary.id.isBlank() || summary.providerId.isBlank()) return null
         return CatalogNavigation(providerId = summary.providerId, catalogId = summary.id)
+    }
+
+    /**
+     * The navigation for tapping an album card in search results, or null when
+     * the card carries no usable catalog id.
+     *
+     * Uses the real [CatalogAlbumSummary] identity directly — no Track is
+     * constructed as a navigation vehicle, and album ids are never sent to track
+     * playback.
+     */
+    fun openAlbum(album: CatalogAlbumSummary): CatalogNavigation? {
+        if (album.id.isBlank() || album.providerId.isBlank()) return null
+        return CatalogNavigation(providerId = album.providerId, catalogId = album.id)
     }
 
     /** True when a card can be tapped, i.e. [openAlbum] would succeed. */

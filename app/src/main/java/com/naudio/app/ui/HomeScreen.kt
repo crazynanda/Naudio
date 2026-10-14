@@ -19,6 +19,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -47,10 +53,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.naudio.app.playback.PlaybackError
 import com.naudio.app.ui.theme.NaudioTheme
+import com.naudio.core.model.CatalogAlbumSummary
+import com.naudio.core.model.CatalogArtistSummary
 import com.naudio.core.model.History
+import com.naudio.core.model.SearchCategory
 import com.naudio.core.model.Track
 import com.naudio.core.player.PlayerState
-import com.naudio.data.repository.LibraryQueryState
+import com.naudio.data.repository.CatalogQueryState
+import com.naudio.data.repository.CatalogSearchResult
 
 /**
  * Stateless home screen. Receives state + emits intents — pure UDF rendering.
@@ -78,14 +88,16 @@ fun HomeScreen(
     audioPermissionGranted: Boolean,
     onRequestAudioPermission: () -> Unit,
     onSelectProvider: (String) -> Unit,
+    onSelectCategory: (SearchCategory) -> Unit,
     onOpenLibrary: () -> Unit,
     onAddToPlaylist: (Track) -> Unit,
+    onTrackOptions: (Track) -> Unit,
     onOpenArtist: (Track) -> Unit,
+    onOpenArtistCard: (CatalogArtistSummary) -> Unit,
+    onOpenAlbumCard: (CatalogAlbumSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    // Playback-resolution failures (no playback provider for the track, or the
-    // provider could not resolve it) surface as a one-shot snackbar.
     LaunchedEffect(playbackError) {
         if (playbackError != null) {
             snackbarHostState.showSnackbar(message = playbackError.message())
@@ -141,14 +153,21 @@ fun HomeScreen(
                 placeholder = { Text("Search your library") },
             )
 
+            // M23: category chips drive [state.category], which re-enters the
+            // search pipeline. Tapping one switches the visible results section.
+            CategoryChips(
+                category = state.category,
+                onCategorySelected = onSelectCategory,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+
             Text(
                 text = state.providerName?.let { "Provider: $it" } ?: "No provider active",
                 style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
 
-            // M17: Recently Played. Hidden entirely while the log is empty, so
-            // a new user sees no empty carousel.
+            // M17: Recently Played. Hidden entirely while the log is empty.
             if (state.recentlyPlayed.isNotEmpty()) {
                 RecentlyPlayedRow(
                     entries = state.recentlyPlayed,
@@ -156,28 +175,191 @@ fun HomeScreen(
                 )
             }
 
-            when {
-                !audioPermissionGranted -> PermissionRequiredPane(onRequestAudioPermission)
-                else -> when (val search = state.searchState) {
-                    is LibraryQueryState.Idle -> IdleHint()
-                    is LibraryQueryState.Loading -> LoadingIndicator()
-                    is LibraryQueryState.Results ->
-                        ResultsList(
-                            tracks = search.tracks,
-                            onTrackSelected = onTrackSelected,
-                            onAddToPlaylist = onAddToPlaylist,
-                            onOpenArtist = onOpenArtist,
+            renderCatalogResults(
+                state = state.searchState,
+                onTrackSelected = onTrackSelected,
+                onAddToPlaylist = onAddToPlaylist,
+                onTrackOptions = onTrackOptions,
+                onOpenArtist = onOpenArtist,
+                onOpenArtistCard = onOpenArtistCard,
+                onOpenAlbumCard = onOpenAlbumCard,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Category chips. Tapping one emits the category the search pipeline
+ * observes, so the visible results switch section immediately.
+ */
+@Composable
+fun CategoryChips(
+    category: SearchCategory,
+    onCategorySelected: (SearchCategory) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SearchCategory.entries.forEach { c ->
+            CategoryChip(
+                category = c,
+                selected = c == category,
+                onClick = { onCategorySelected(c) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryChip(
+    category: SearchCategory,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val textColor = if (selected) {
+        colors.onPrimary
+    } else {
+        colors.onSurfaceVariant
+    }
+    Box(
+        modifier = modifier
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .background(if (selected) colors.primary else colors.surface),
+    ) {
+        Text(
+            text = category.label,
+            color = textColor,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+        )
+    }
+}
+
+/**
+ * Renders the catalog search results grouped by section. [state] is a
+ * [CatalogQueryState.Results] whose [results] list holds one typed section per
+ * category — Songs, Artists, Albums — in that order.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun renderCatalogResults(
+    state: CatalogQueryState,
+    onTrackSelected: (Track) -> Unit,
+    onAddToPlaylist: (Track) -> Unit,
+    onTrackOptions: (Track) -> Unit,
+    onOpenArtist: (Track) -> Unit,
+    onOpenArtistCard: (CatalogArtistSummary) -> Unit,
+    onOpenAlbumCard: (CatalogAlbumSummary) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (state) {
+        is CatalogQueryState.Idle -> {}
+        is CatalogQueryState.Loading -> LoadingIndicator()
+        is CatalogQueryState.Error -> ErrorPane(message = state.message, onRetry = {})
+        is CatalogQueryState.Results -> renderSections(
+            state.results, onTrackSelected, onTrackOptions, onOpenArtist,
+            onOpenArtistCard, onOpenAlbumCard,
+        )
+        else -> {}
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun renderSections(
+    results: List<CatalogSearchResult>,
+    onTrackSelected: (Track) -> Unit,
+    onTrackOptions: (Track) -> Unit,
+    onOpenArtist: (Track) -> Unit,
+    onOpenArtistCard: (CatalogArtistSummary) -> Unit,
+    onOpenAlbumCard: (CatalogAlbumSummary) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        val songs = results.filterIsInstance<CatalogSearchResult.Tracks>().firstOrNull()?.tracks ?: emptyList()
+        if (songs.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Songs",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            items(songs, key = { "song|${it.providerId}|${it.id}" }) { track ->
+                SongResultRow(
+                    track = track,
+                    onTrackSelected = onTrackSelected,
+                    onTrackOptions = onTrackOptions,
+                    onOpenArtist = onOpenArtist,
+                )
+            }
+        }
+        val artists = results.filterIsInstance<CatalogSearchResult.Artists>().firstOrNull()?.items ?: emptyList()
+        if (artists.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Artists",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(artists, key = { "artist|${it.providerId}|${it.id}" }) { artist ->
+                        ArtistCard(
+                            artist = artist,
+                            onOpenArtist = onOpenArtistCard,
                         )
-                    is LibraryQueryState.Error -> ErrorPane(message = search.message, onRetry = onRetry)
+                    }
+                }
+            }
+        }
+        val albums = results.filterIsInstance<CatalogSearchResult.Albums>().firstOrNull()?.items ?: emptyList()
+        if (albums.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Albums",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(albums, key = { "album|${it.providerId}|${it.id}" }) { album ->
+                        AlbumCard(
+                            album = album,
+                            onOpenAlbum = onOpenAlbumCard,
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-/**
- * Minimal provider selector: a TextButton + DropdownMenu next to the provider
- * label. No provider-management architecture — just activating a ProviderId.
+/** Minimal provider selector: a TextButton + DropdownMenu next to the provider
+ *  label. No provider-management architecture — just activating a ProviderId.
  */
 @Composable
 private fun ProviderSelector(
@@ -218,18 +400,8 @@ private fun ProviderSelector(
 
 /**
  * M17: horizontal carousel of recent listening events, newest first.
- *
- * Stateless and read-only: it renders the stored metadata snapshot (artwork,
- * title, artist) through the EXISTING [ArtworkImage] — no second artwork
- * loader, no provider lookup, no network beyond the artwork URL itself.
- *
- * Entries are listening EVENTS, so the same track can legitimately appear
- * twice; items are therefore keyed by position, never by track id, which would
- * crash the row on duplicates.
- *
- * A tap emits the snapshot as a [Track] and the caller feeds it to the existing
- * playback path — no history-specific playback route exists.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RecentlyPlayedRow(
     entries: List<History>,
@@ -287,7 +459,8 @@ private val CAROUSEL_ITEM_WIDTH = 120.dp
 
 /** Shown when media-read permission is missing; the provider is never queried. */
 @Composable
-private fun PermissionRequiredPane(onRequestAudioPermission: () -> Unit) {    Column(
+private fun PermissionRequiredPane(onRequestAudioPermission: () -> Unit) {
+    Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -315,88 +488,96 @@ private fun LoadingIndicator() {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ResultsList(
-    tracks: List<Track>,
+private fun SongResultRow(
+    track: Track,
     onTrackSelected: (Track) -> Unit,
-    onAddToPlaylist: (Track) -> Unit,
+    onTrackOptions: (Track) -> Unit,
     onOpenArtist: (Track) -> Unit,
 ) {
-    if (tracks.isEmpty()) {
-        Text(
-            text = "No results.",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(16.dp),
-        )
-        return
-    }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = { onTrackSelected(track) },
+                onLongClick = { onTrackOptions(track) },
+            )
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Positional identity: providers can return the same track id twice
-        // (e.g. YouTube Music lists a song and a video with one videoId), so
-        // keying by id crashes LazyColumn on duplicate keys.
-        items(tracks) { track ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .combinedClickable(
-                        onClick = { onTrackSelected(track) },
-                        // M13: long-press offers "Add to playlist" for any
-                        // provider's search result.
-                        onLongClick = { onAddToPlaylist(track) },
-                    )
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // M12: small artwork thumbnail; placeholder when unavailable.
-                ArtworkImage(
-                    artworkUrl = track.artworkUrl,
-                    trackTitle = track.title,
-                    contentDescription = null,
-                    cornerRadius = 6.dp,
-                    glyphSize = 14.sp,
-                    modifier = Modifier
-                        .padding(end = 12.dp)
-                        .size(44.dp),
-                )
-                Column {
-                    Text(text = track.title, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = track.artist,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        // Tappable only when the provider reported that artist's
-                        // own catalog id: with no id there is nothing legitimate to
-                        // open, so the label stays plain text (M21 Step 9).
-                        modifier = if (CatalogDetailActions.isArtistNavigable(track)) {
-                            Modifier.clickable { onOpenArtist(track) }
-                        } else {
-                            Modifier
-                        },
-                    )
-                }
-            }
+        ArtworkImage(
+            artworkUrl = track.artworkUrl,
+            trackTitle = track.title,
+            contentDescription = null,
+            cornerRadius = 6.dp,
+            glyphSize = 14.sp,
+            modifier = Modifier
+                .padding(end = 12.dp)
+                .size(44.dp),
+        )
+        Column {
+            Text(text = track.title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = track.artist,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = if (CatalogDetailActions.isArtistNavigable(track)) {
+                    Modifier.clickable { onOpenArtist(track) }
+                } else {
+                    Modifier
+                },
+            )
         }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ArtistCard(
+    artist: CatalogArtistSummary,
+    onOpenArtist: (CatalogArtistSummary) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .width(140.dp)
+            .clickable { onOpenArtist(artist) }
+    ) {
+        Text(
+            text = artist.name,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AlbumCard(
+    album: CatalogAlbumSummary,
+    onOpenAlbum: (CatalogAlbumSummary) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .width(140.dp)
+            .clickable { onOpenAlbum(album) }
+    ) {
+        Text(
+            text = album.title,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
     }
 }
 
 /**
  * User-facing text for a playback error.
- *
- * Deliberately describes only what Naudio observed — that its own providers did
- * not return a playable source — and never asserts that a particular service
- * blocked the user. The wording follows the existing snackbar channel used by
- * Home and Library; no new notification mechanism is introduced.
  */
 fun PlaybackError.message(): String = when (this) {
     PlaybackError.UNAVAILABLE -> "Playback isn't available for this item."
     PlaybackError.UNRESOLVABLE -> "Couldn't play this item — check your connection and try again."
-    // Terminal (M20): the whole queue was walked and nothing could play, so
-    // playback stopped. Naming the queue rather than a single item is the point
-    // — it is what makes an exhausted, unplayable queue understandable instead
-    // of looking like playback just quietly stopped.
     PlaybackError.QUEUE_UNPLAYABLE -> "Unable to play queued tracks."
 }
 
@@ -425,7 +606,7 @@ private fun HomeScreenPreview() {
                 providerName = "Local library",
                 providers = listOf(ProviderOption("local", "Local library")),
                 activeProviderId = "local",
-                searchState = LibraryQueryState.Idle,
+                searchState = CatalogQueryState.Idle,
                 recentlyPlayed = listOf(
                     History(
                         id = 1L,
@@ -457,9 +638,13 @@ private fun HomeScreenPreview() {
             audioPermissionGranted = true,
             onRequestAudioPermission = {},
             onSelectProvider = {},
+            onSelectCategory = {},
             onOpenLibrary = {},
             onAddToPlaylist = {},
+            onTrackOptions = {},
             onOpenArtist = {},
+            onOpenArtistCard = {},
+            onOpenAlbumCard = {},
         )
     }
 }
