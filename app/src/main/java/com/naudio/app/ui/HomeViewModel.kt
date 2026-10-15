@@ -97,15 +97,21 @@ class HomeViewModel(
     // the account lives in HistoryTracker and the persistence in Room.
     private val recentlyPlayed = historyRepository.observeRecent()
 
-    /** Merge provider identity with the search pipeline into [HomeUiState]. */
+    /**
+     * Merge provider identity with the search pipeline into [HomeUiState].
+     * [query] is included directly so the controlled TextField reacts to every
+     * keystroke immediately, while [search] preserves the 300 ms debounce for
+     * the catalog search itself.
+     */
     private val merged = combine(
         providerInfo,
         category,
+        query,
         search,
         recentlyPlayed,
-    ) { (providerName, activeProviderId), category, searchState, history ->
+    ) { (providerName, activeProviderId), category, currentQuery, searchState, history ->
         HomeUiState(
-            query = query.value,
+            query = currentQuery,
             category = category,
             providerName = providerName,
             activeProviderId = activeProviderId,

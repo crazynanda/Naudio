@@ -113,6 +113,25 @@ class HomeViewModelTest {
         assertEquals("daft punk", viewModel.uiState.value.query)
     }
 
+
+
+    @Test
+    fun `query text is retained across category and retry intents`() = runTest {
+        val (viewModel, _) = viewModel(FakeHistoryDao())
+        viewModel.onQueryChange("daft punk")
+        advanceUntilIdle()
+
+        assertEquals("daft punk", viewModel.uiState.value.query)
+
+        viewModel.onSelectCategory(com.naudio.core.model.SearchCategory.ARTISTS)
+        advanceUntilIdle()
+        assertEquals("daft punk", viewModel.uiState.value.query)
+
+        viewModel.onRetry()
+        advanceUntilIdle()
+        assertEquals("daft punk", viewModel.uiState.value.query)
+    }
+
     @Test
     fun `a history entry converts to the track the playback path expects`() {
         val track = History(
